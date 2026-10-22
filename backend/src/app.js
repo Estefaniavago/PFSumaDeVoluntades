@@ -1,21 +1,20 @@
 const express = require('express');
 const cors = require('cors');
-const pool = require('./db');
+
+// Importar rutas
+const productoRoutes = require('./routes/producto.routes');
+const usuarioRoutes = require('./routes/usuario.routes');
+const remitoRoutes = require('./routes/remito.routes');
+const menuRoutes = require('./routes/menu.routes');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/productos', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      'SELECT * FROM productos WHERE activo = TRUE ORDER BY nombre'
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'No se pudo consultar la base de datos.' });
-  }
-});
+// Montar las rutas
+app.use('/productos', productoRoutes);
+app.use('/usuarios', usuarioRoutes);
+app.use('/remitos', remitoRoutes);
+app.use('/menus', menuRoutes);
 
 module.exports = app;
