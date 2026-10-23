@@ -10,6 +10,9 @@ app.use(express.json());
 
 app.use(authRoutes);
 
+const donacionesRoutes = require('./routes/donaciones');
+app.use(donacionesRoutes);
+
 // Catálogo: cualquier usuario con sesión (el referente de puerta lo necesita para cargar ingresos)
 app.get('/productos', autenticar, async (req, res) => {
   try {
