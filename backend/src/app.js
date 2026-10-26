@@ -1,54 +1,42 @@
 const express = require('express');
 const cors = require('cors');
-const pool = require('./db');
+
+// Importación de todas las rutas modulares
 const authRoutes = require('./routes/auth');
-const { autenticar, permitirRoles } = require('./middleware/auth');
+const donacionesRoutes = require('./routes/donaciones');
+const productosRouter = require('./routes/productos');
+const stockRouter = require('./routes/stock');
+const salidasRouter = require('./routes/salidas');
+const derivacionesRouter = require('./routes/derivaciones');
+const bajasRouter = require('./routes/bajas');
+const ajustesRouter = require('./routes/ajustes');
+const movimientosRouter = require('./routes/movimientos');
+const alertasRouter = require('./routes/alertas');
+const aportesRouter = require('./routes/aportes');
+const menusRouter = require('./routes/menus');
+const actividadesRouter = require('./routes/actividades');
+const presupuestosRouter = require('./routes/presupuestos');
+const usuariosRouter = require('./routes/usuarios');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Montaje de rutas agrupadas por módulo
 app.use(authRoutes);
-
-const donacionesRoutes = require('./routes/donaciones');
 app.use(donacionesRoutes);
+app.use('/productos', productosRouter);
+app.use('/stock', stockRouter);
+app.use('/salidas', salidasRouter);
+app.use('/derivaciones', derivacionesRouter);
+app.use('/bajas', bajasRouter);
+app.use('/ajustes', ajustesRouter);
+app.use('/movimientos', movimientosRouter);
+app.use('/alertas', alertasRouter);
+app.use('/aportes', aportesRouter);
+app.use('/menus', menusRouter);
+app.use('/actividades', actividadesRouter);
+app.use(presupuestosRouter);
+app.use('/usuarios', usuariosRouter);
 
-// Catálogo: cualquier usuario con sesión (el referente de puerta lo necesita para cargar ingresos)
-app.get('/productos', autenticar, async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      'SELECT * FROM productos WHERE activo = TRUE ORDER BY nombre'
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'No se pudo consultar la base de datos.' });
-  }
-});
-
-// Stock: se CALCULA sumando movimientos (RNF-08). No lo ve el referente de puerta.
-app.get('/stock', autenticar,
-  permitirRoles('coordinador_actividad', 'encargado_deposito'),
-  async (req, res) => {
-    try {
-      const { rows } = await pool.query(`
-        SELECT p.id_producto, p.nombre, p.unidad_medida, p.minimo_deseable,
-          COALESCE(SUM(CASE m.tipo_movimiento
-            WHEN 'ingreso' THEN m.cantidad
-            WHEN 'ajuste'  THEN m.cantidad
-            ELSE -m.cantidad END), 0) AS stock
-        FROM productos p
-        LEFT JOIN donaciones d ON d.id_producto = p.id_producto
-        LEFT JOIN movimientos m ON m.id_donacion = d.id_donacion
-        WHERE p.activo = TRUE
-        GROUP BY p.id_producto
-        ORDER BY p.nombre`);
-      res.json(rows);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'No se pudo consultar el stock.' });
-    }
-  }
-);
-
-module.exports = app;
+module.exports = app; 

@@ -5,7 +5,9 @@
   "scripts": {
   "start": "node src/server.js",
   "dev": "nodemon src/server.js",
-  "test": "jest"
+  "test": "jest",
+  "db:reset": "node scripts/db-setup.js --reset",
+  "db:seed": "node scripts/db-setup.js"
 },
   "keywords": [],
   "author": "",
