@@ -81,6 +81,15 @@ tr.falta td:first-child { box-shadow: inset 3px 0 0 var(--bordo); }
 .mensaje-ok { background: #E7EDE8; border: 1px solid #CADBCF; color: var(--verde); border-radius: 12px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
 .cargando { color: var(--gris); font-size: 13px; padding: 20px 0; }
 
+/* Selector de dos opciones (Mercadería / Aporte en dinero) */
+.segmentos { display: flex; background: #E9ECEE; border-radius: 12px; padding: 4px; margin-bottom: 12px; }
+.segmentos button { flex: 1; border: 0; background: none; padding: 9px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--gris); cursor: pointer; }
+.segmentos button.activo { background: #fff; color: var(--negro); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.item-donacion label:first-of-type { margin-top: 4px; }
+.enlace { background: none; border: 0; color: var(--bordo); font-size: 12.5px; cursor: pointer; text-decoration: underline; }
+input:disabled, select:disabled { background: #F2F4F5; color: var(--gris); }
+.mensaje-ok ul { font-size: 13px; }
+
 /* ───────── Inicio de sesión ───────── */
 .login { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .login .tarjeta { width: 100%; max-width: 380px; padding: 24px; }

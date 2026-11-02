@@ -3,6 +3,7 @@ import { ProveedorSesion, useSesion } from './sesion';
 import { Estructura, SoloPara } from './componentes/Estructura';
 import Login from './pantallas/Login';
 import Inicio from './pantallas/Inicio';
+import Ingreso from './pantallas/Ingreso';
 
 // Pantallas que todavía no están desarrolladas
 function EnConstruccion({ titulo }) {
@@ -23,7 +24,7 @@ function Rutas() {
       <Route element={<Estructura />}>
         <Route index element={<Inicio />} />
         <Route path="ingreso" element={
-          <SoloPara pantalla="ingreso" titulo="Ingresar una donación"><EnConstruccion titulo="Ingresar una donación" /></SoloPara>} />
+          <SoloPara pantalla="ingreso" titulo="Ingresar una donación"><Ingreso /></SoloPara>} />
         <Route path="deposito" element={
           <SoloPara pantalla="deposito" titulo="Depósito central"><EnConstruccion titulo="Depósito central" /></SoloPara>} />
         <Route path="actividades/*" element={
