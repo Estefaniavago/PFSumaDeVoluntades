@@ -34,10 +34,12 @@ CREATE TABLE productos (
 -- Un mismo producto no puede cargarse dos veces con distinta mayúscula ("arroz" y "Arroz")
 CREATE UNIQUE INDEX productos_nombre_unico ON productos (LOWER(nombre));
 
+-- Las fechas y horas se guardan con zona horaria (TIMESTAMPTZ): así la hora es la misma
+-- aunque el servidor esté en otro huso horario que la organización.
 CREATE TABLE remitos (
   id_remito SERIAL PRIMARY KEY,
   nro_remito VARCHAR(20) UNIQUE NOT NULL,
-  fecha_hora_ingreso TIMESTAMP NOT NULL DEFAULT NOW(),
+  fecha_hora_ingreso TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   id_usuario INT NOT NULL REFERENCES usuarios(id_usuario),
   donante_nombre VARCHAR(120),
   anonima BOOLEAN NOT NULL DEFAULT FALSE
@@ -64,7 +66,7 @@ CREATE TABLE actividades (
   id_coordinador INT NOT NULL REFERENCES usuarios(id_usuario),
   tipo_actividad VARCHAR(20) NOT NULL
     CHECK (tipo_actividad IN ('desayuno','merienda','cena','salida_barrios','ropero','evento')),
-  fecha_hora_salida TIMESTAMP NOT NULL,
+  fecha_hora_salida TIMESTAMPTZ NOT NULL,
   porciones_estimadas INT NOT NULL CHECK (porciones_estimadas > 0),
   porciones_reales INT CHECK (porciones_reales >= 0),
   estado VARCHAR(15) NOT NULL DEFAULT 'planificada'
@@ -103,7 +105,7 @@ CREATE TABLE movimientos (
   -- El stock es la suma de las cantidades (RNF-08). NaN se rechaza: rompería el stock para siempre.
   cantidad NUMERIC(10,2) NOT NULL CHECK (cantidad <> 0 AND cantidad <> 'NaN'),
   motivo VARCHAR(200),
-  fecha_hora TIMESTAMP NOT NULL DEFAULT NOW()
+  fecha_hora TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE pedidos_reposicion (
@@ -114,7 +116,7 @@ CREATE TABLE pedidos_reposicion (
   cantidad_faltante NUMERIC(10,2) NOT NULL CHECK (cantidad_faltante > 0 AND cantidad_faltante <> 'NaN'),
   estado VARCHAR(15) NOT NULL DEFAULT 'pendiente'
     CHECK (estado IN ('pendiente','gestionado','recibido')),
-  fecha_hora TIMESTAMP NOT NULL DEFAULT NOW()
+  fecha_hora TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Refuerzo de RNF-07 a nivel base de datos: bloquea UPDATE y DELETE
