@@ -5,8 +5,9 @@ const { autenticar, permitirRoles } = require('../middleware/auth');
 
 class ErrorNegocio extends Error {}
 
-// GET /actividades/:id/presupuesto calcular insumos necesarios contra el stock disponible
-router.get('/actividades/:id/presupuesto', autenticar, async (req, res) => {
+// GET /actividades/:id/presupuesto calcular insumos necesarios contra el stock disponible.
+// Muestra stock, así que lo ven los mismos perfiles que GET /stock (no el referente de puerta).
+router.get('/actividades/:id/presupuesto', autenticar, permitirRoles('coordinador_actividad', 'encargado_deposito'), async (req, res) => {
   const { id } = req.params;
 
   try {

@@ -2,19 +2,21 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
-
-class ErrorNegocio extends Error {}
+const { leerNumero } = require('../validaciones');
+const { ErrorNegocio } = require('../lotes');
 
 // POST /aportes
 router.post('/',
   autenticar,
   permitirRoles('referente_puerta', 'encargado_deposito', 'direccion'),
   async (req, res) => {
-    const { monto, donante_nombre, anonima, motivo } = req.body;
+    const { donante_nombre, anonima, motivo } = req.body;
 
-    if (!monto || monto <= 0) {
-      return res.status(400).json({ error: 'Debe indicar un monto monetario válido mayor a 0.' });
+    const leido = leerNumero(req.body.monto, 'Monto', { maximo: 1000000000 });
+    if (leido.error) {
+      return res.status(400).json({ error: leido.error });
     }
+    const monto = leido.valor;
 
     const client = await pool.connect();
     try {
@@ -59,7 +61,7 @@ router.post('/',
           lote.id_donacion,
           req.usuario.id,
           monto,
-          motivo ? motivo.trim() : 'Aporte monetario registrado'
+          motivo ? String(motivo).trim() : 'Aporte monetario registrado'
         ]
       );
 

@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
-
-class ErrorNegocio extends Error {}
+const { leerNumero, leerId } = require('../validaciones');
+const { ErrorNegocio, bloquearLote, cerrarLoteSiSeAgoto } = require('../lotes');
 
 
 // GET /destinos
@@ -53,35 +53,31 @@ router.post('/',
   autenticar,
   permitirRoles('encargado_deposito', 'direccion'),
   async (req, res) => {
-    const { id_donacion, id_destino, cantidad, motivo } = req.body;
+    const { id_donacion, id_destino, motivo } = req.body;
 
-    if (!id_donacion || !id_destino || !cantidad || cantidad <= 0 || !motivo) {
-      return res.status(400).json({ 
-        error: 'Faltan datos obligatorios: id_donacion, id_destino, cantidad (mayor a 0) y motivo.' 
-      });
+    const lote = leerId(id_donacion, 'Lote (id_donacion)');
+    const destino = leerId(id_destino, 'Destino (id_destino)');
+    const cantidad = leerNumero(req.body.cantidad, 'Cantidad');
+    const error = lote.error || destino.error || cantidad.error ||
+      (!motivo || !String(motivo).trim() ? 'Indicá el motivo de la derivación.' : null);
+    if (error) {
+      return res.status(400).json({ error });
     }
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      //Verificar stock
-      const { rows: stockRows } = await client.query(
-        `SELECT COALESCE(SUM(cantidad), 0) AS disponible 
-         FROM movimientos 
-         WHERE id_donacion = $1`,
-        [id_donacion]
-      );
-      const disponible = parseFloat(stockRows[0].disponible);
-
-      if (cantidad > disponible) {
-        throw new ErrorNegocio(`Stock insuficiente en el lote seleccionado. Disponible: ${disponible}, solicitado: ${cantidad}`);
+      // Bloquear el lote y verificar que alcance
+      const { saldo } = await bloquearLote(client, lote.valor);
+      if (cantidad.valor > saldo) {
+        throw new ErrorNegocio(`Stock insuficiente en el lote seleccionado. Disponible: ${saldo}, solicitado: ${cantidad.valor}.`);
       }
 
       // Verificar que el destino exista
       const { rows: destRows } = await client.query(
         'SELECT id_destino FROM destinos WHERE id_destino = $1',
-        [id_destino]
+        [destino.valor]
       );
       if (destRows.length === 0) {
         throw new ErrorNegocio('El destino seleccionado no existe.');
@@ -93,22 +89,25 @@ router.post('/',
          VALUES ($1, $2, $3, 'derivacion', $4, $5)
          RETURNING id_movimiento, fecha_hora`,
         [
-          id_donacion,
+          lote.valor,
           req.usuario.id,
-          id_destino,
-          -Math.abs(cantidad),
-          motivo.trim()
+          destino.valor,
+          -cantidad.valor,
+          String(motivo).trim()
         ]
       );
+
+      // Si el lote quedó vacío, pasa a "derivada"
+      await cerrarLoteSiSeAgoto(client, lote.valor, 'derivada');
 
       await client.query('COMMIT');
       res.status(201).json({
         mensaje: 'Derivación de mercadería registrada correctamente.',
         movimiento: {
           id_movimiento: movRows[0].id_movimiento,
-          id_donacion,
-          id_destino,
-          cantidad_derivada: cantidad,
+          id_donacion: lote.valor,
+          id_destino: destino.valor,
+          cantidad_derivada: cantidad.valor,
           fecha_hora: movRows[0].fecha_hora
         }
       });

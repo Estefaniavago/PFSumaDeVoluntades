@@ -114,10 +114,43 @@ acceso a todo.
 
 | Método y ruta | Qué hace | Perfiles |
 |---|---|---|
+| **Sesión** | | |
 | `POST /login` | Inicia sesión y devuelve el token | Todos |
+| **Catálogo** | | |
 | `GET /productos` | Catálogo de productos activos | Todos |
-| `GET /stock` | Stock por producto, calculado a partir de los movimientos | Encargado de depósito, coordinador de actividad, dirección |
-| `POST /donaciones` | Registra una donación: genera el remito, un lote por producto y el movimiento de ingreso | Referente de puerta, encargado de depósito, dirección |
+| `POST /productos` | Alta de un producto. Si lo crea el referente de puerta, el mínimo queda en 0 y lo completa la dirección (RF-03) | Referente de puerta, encargado de depósito |
+| `PUT /productos/:id` | Edita un producto (nombre, categoría, unidad, mínimo, perecedero, activo) | Encargado de depósito |
+| `DELETE /productos/:id` | Baja lógica: el producto queda inactivo | Encargado de depósito |
+| **Inventario** | | |
+| `POST /donaciones` | Registra una donación: genera el remito, un lote por producto y el movimiento de ingreso | Referente de puerta, encargado de depósito |
+| `POST /aportes` | Registra un aporte monetario como donación | Referente de puerta, encargado de depósito |
+| `GET /stock` | Stock por producto y detalle de lotes con vencimiento | Encargado de depósito, coordinador de actividad |
+| `POST /salidas` | Salida de mercadería de un lote, opcionalmente para una actividad | Encargado de depósito |
+| `GET /derivaciones/destinos` | Comedores y organizaciones a los que se deriva | Todos |
+| `POST /derivaciones/destinos` | Alta de un destino | Encargado de depósito |
+| `POST /derivaciones` | Deriva mercadería de un lote a un destino, con motivo | Encargado de depósito |
+| `POST /bajas` | Baja por vencimiento o descarte, con motivo | Encargado de depósito |
+| `POST /ajustes` | Corrección de stock (positiva o negativa), con motivo | Encargado de depósito |
+| `GET /movimientos` | Historial; filtros por `id_producto`, `tipo_movimiento`, `id_usuario`, `id_actividad`, `fecha_desde`, `fecha_hasta` | Encargado de depósito, coordinador de actividad |
+| `GET /alertas` | Productos bajo el mínimo y lotes que vencen en 7 días o menos | Encargado de depósito, coordinador de actividad |
+| **Presupuesto por actividad** | | |
+| `GET /menus` | Menús con sus insumos por porción | Todos |
+| `POST /menus` | Crea un menú con sus insumos | Dirección |
+| `DELETE /menus/:id` | Elimina un menú que no tenga actividades | Dirección |
+| `GET /actividades` | Actividades planificadas, realizadas y canceladas | Todos |
+| `POST /actividades` | Crea una actividad con tipo, fecha, menú y porciones | Coordinador de actividad |
+| `PUT /actividades/:id/cancelar` | Cancela una actividad | Coordinador de actividad |
+| `GET /actividades/:id/presupuesto` | Insumos necesarios, stock disponible y faltantes | Coordinador de actividad, encargado de depósito |
+| `POST /actividades/:id/reservar` | Reserva los insumos y genera pedidos de reposición por lo que falta | Coordinador de actividad |
+| **Usuarios** | | |
+| `GET /usuarios`, `POST /usuarios` | Lista y crea usuarios | Dirección |
+| `PUT /usuarios/:id`, `DELETE /usuarios/:id` | Edita y desactiva usuarios | Dirección |
+
+La dirección puede usar todas las rutas, aunque no figure en la columna de perfiles.
+
+En `salidas`, `derivaciones`, `bajas` y `ajustes`, la cantidad tiene que ser un número; si no, la
+respuesta es 400. Las cantidades que restan stock se guardan como movimientos negativos, y el stock
+es la suma de los movimientos.
 
 Ejemplo de cuerpo para `POST /donaciones`:
 
@@ -147,9 +180,11 @@ backend/
     validaciones.js    Validación de los datos de entrada
     middleware/
       auth.js          Verificación de la sesión y de los perfiles
-    routes/
-      auth.js          Inicio de sesión
-      donaciones.js    Registro de donaciones
+    routes/            Una ruta por módulo: auth, donaciones, aportes, productos, stock,
+                       salidas, derivaciones, bajas, ajustes, movimientos, alertas, menus,
+                       actividades, presupuestos y usuarios
+    lotes.js           Bloqueo y cierre de lotes en salidas, derivaciones, bajas y ajustes
+  tests/               Pruebas automáticas (Jest)
   .env.example         Variables de entorno de ejemplo
 database/
   schema.sql           Tablas, restricciones y trigger de movimientos inmutables

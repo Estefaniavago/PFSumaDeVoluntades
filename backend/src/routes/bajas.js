@@ -2,37 +2,32 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
-
-class ErrorNegocio extends Error {}
+const { leerNumero, leerId } = require('../validaciones');
+const { ErrorNegocio, bloquearLote, cerrarLoteSiSeAgoto } = require('../lotes');
 
 // POST /bajas
 router.post('/',
   autenticar,
   permitirRoles('encargado_deposito', 'direccion'),
   async (req, res) => {
-    const { id_donacion, cantidad, motivo } = req.body;
+    const { id_donacion, motivo } = req.body;
 
-    if (!id_donacion || !cantidad || cantidad <= 0 || !motivo || motivo.trim() === '') {
-      return res.status(400).json({ 
-        error: 'Faltan datos obligatorios: id_donacion, cantidad (mayor a 0) y un motivo válido para la baja.' 
-      });
+    const lote = leerId(id_donacion, 'Lote (id_donacion)');
+    const cantidad = leerNumero(req.body.cantidad, 'Cantidad');
+    const error = lote.error || cantidad.error ||
+      (!motivo || !String(motivo).trim() ? 'Indicá el motivo de la baja.' : null);
+    if (error) {
+      return res.status(400).json({ error });
     }
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Verificar stock
-      const { rows: stockRows } = await client.query(
-        `SELECT COALESCE(SUM(cantidad), 0) AS disponible 
-         FROM movimientos 
-         WHERE id_donacion = $1`,
-        [id_donacion]
-      );
-      const disponible = parseFloat(stockRows[0].disponible);
-
-      if (cantidad > disponible) {
-        throw new ErrorNegocio(`No se puede dar de baja una cantidad mayor al stock disponible en el lote. Disponible: ${disponible}, solicitado: ${cantidad}`);
+      // Bloquear el lote y verificar que alcance
+      const { saldo } = await bloquearLote(client, lote.valor);
+      if (cantidad.valor > saldo) {
+        throw new ErrorNegocio(`No se puede dar de baja una cantidad mayor al stock disponible en el lote. Disponible: ${saldo}, solicitado: ${cantidad.valor}.`);
       }
 
       // Registrar el movimiento 
@@ -41,21 +36,24 @@ router.post('/',
          VALUES ($1, $2, 'baja', $3, $4)
          RETURNING id_movimiento, fecha_hora`,
         [
-          id_donacion,
+          lote.valor,
           req.usuario.id,
-          -Math.abs(cantidad),
-          motivo.trim()
+          -cantidad.valor,
+          String(motivo).trim()
         ]
       );
+
+      // Si el lote quedó vacío, pasa a "vencida_descartada"
+      await cerrarLoteSiSeAgoto(client, lote.valor, 'vencida_descartada');
 
       await client.query('COMMIT');
       res.status(201).json({
         mensaje: 'Baja de mercadería registrada correctamente.',
         movimiento: {
           id_movimiento: movRows[0].id_movimiento,
-          id_donacion,
-          cantidad_dada_de_baja: cantidad,
-          motivo: motivo.trim(),
+          id_donacion: lote.valor,
+          cantidad_dada_de_baja: cantidad.valor,
+          motivo: String(motivo).trim(),
           fecha_hora: movRows[0].fecha_hora
         }
       });
