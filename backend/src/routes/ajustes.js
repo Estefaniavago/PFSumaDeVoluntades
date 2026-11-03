@@ -2,40 +2,33 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
-
-class ErrorNegocio extends Error {}
+const { leerNumero, leerId } = require('../validaciones');
+const { ErrorNegocio, bloquearLote } = require('../lotes');
 
 // POST /ajustes 
 router.post('/',
   autenticar,
   permitirRoles('encargado_deposito', 'direccion'),
   async (req, res) => {
-    const { id_donacion, cantidad, motivo } = req.body;
+    const { id_donacion, motivo } = req.body;
 
-    // La cantidad en ajustes puede ser positiva (sobrante) o negativa (faltante)
-    if (!id_donacion || cantidad === undefined || cantidad === 0 || !motivo || motivo.trim() === '') {
-      return res.status(400).json({ 
-        error: 'Faltan datos obligatorios: id_donacion, cantidad (diferente de 0) y un motivo válido.' 
-      });
+    // La cantidad en ajustes puede ser positiva (sobrante) o negativa (faltante), pero no cero
+    const lote = leerId(id_donacion, 'Lote (id_donacion)');
+    const cantidad = leerNumero(req.body.cantidad, 'Cantidad', { permitirNegativo: true });
+    const error = lote.error || cantidad.error ||
+      (!motivo || !String(motivo).trim() ? 'Indicá el motivo del ajuste.' : null);
+    if (error) {
+      return res.status(400).json({ error });
     }
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Si el ajuste es negativo, validamos que no deje el lote por debajo de 0
-      if (cantidad < 0) {
-        const { rows: stockRows } = await client.query(
-          `SELECT COALESCE(SUM(cantidad), 0) AS disponible 
-           FROM movimientos 
-           WHERE id_donacion = $1`,
-          [id_donacion]
-        );
-        const disponible = parseFloat(stockRows[0].disponible);
-
-        if (Math.abs(cantidad) > disponible) {
-          throw new ErrorNegocio(`El ajuste negativo excede el stock disponible en el lote. Disponible: ${disponible}`);
-        }
+      // Bloquear el lote; si el ajuste es negativo, no puede dejarlo por debajo de 0
+      const { saldo } = await bloquearLote(client, lote.valor);
+      if (cantidad.valor < 0 && -cantidad.valor > saldo) {
+        throw new ErrorNegocio(`El ajuste negativo excede el stock disponible en el lote. Disponible: ${saldo}.`);
       }
 
       // Registrar el movimiento de ajuste
@@ -44,10 +37,10 @@ router.post('/',
          VALUES ($1, $2, 'ajuste', $3, $4)
          RETURNING id_movimiento, fecha_hora`,
         [
-          id_donacion,
+          lote.valor,
           req.usuario.id,
-          cantidad,
-          motivo.trim()
+          cantidad.valor,
+          String(motivo).trim()
         ]
       );
 
@@ -56,9 +49,9 @@ router.post('/',
         mensaje: 'Ajuste de stock registrado correctamente.',
         movimiento: {
           id_movimiento: movRows[0].id_movimiento,
-          id_donacion,
-          cantidad_ajustada: cantidad,
-          motivo: motivo.trim(),
+          id_donacion: lote.valor,
+          cantidad_ajustada: cantidad.valor,
+          motivo: String(motivo).trim(),
           fecha_hora: movRows[0].fecha_hora
         }
       });

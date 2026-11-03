@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
+const { leerNumero, leerId } = require('../validaciones');
 
 // GET /actividades
 router.get('/', autenticar, async (req, res) => {
@@ -32,11 +33,19 @@ router.get('/', autenticar, async (req, res) => {
 
 // POST /actividades crear actividad
 router.post('/', autenticar, permitirRoles('direccion', 'coordinador_actividad'), async (req, res) => {
-  const { id_menu, tipo_actividad, fecha_hora_salida, porciones_estimadas } = req.body;
+  const { id_menu, tipo_actividad, fecha_hora_salida } = req.body;
 
   const tiposValidos = ['desayuno', 'merienda', 'cena', 'salida_barrios', 'ropero', 'evento'];
-  if (!tipo_actividad || !tiposValidos.includes(tipo_actividad) || !fecha_hora_salida || !porciones_estimadas || porciones_estimadas <= 0) {
-    return res.status(400).json({ error: 'Datos incompletos o inválidos para crear la actividad.' });
+  if (!tipo_actividad || !tiposValidos.includes(tipo_actividad)) {
+    return res.status(400).json({ error: `Tipo de actividad inválido. Debe ser uno de: ${tiposValidos.join(', ')}.` });
+  }
+  if (!fecha_hora_salida || isNaN(new Date(fecha_hora_salida))) {
+    return res.status(400).json({ error: 'Indicá una fecha y hora de salida válida.' });
+  }
+  const porciones = leerNumero(req.body.porciones_estimadas, 'Porciones estimadas', { entero: true });
+  const menu = id_menu ? leerId(id_menu, 'Menú (id_menu)') : { valor: null };
+  if (porciones.error || menu.error) {
+    return res.status(400).json({ error: porciones.error || menu.error });
   }
 
   try {
@@ -44,7 +53,7 @@ router.post('/', autenticar, permitirRoles('direccion', 'coordinador_actividad')
       `INSERT INTO actividades (id_menu, id_coordinador, tipo_actividad, fecha_hora_salida, porciones_estimadas, estado)
        VALUES ($1, $2, $3, $4, $5, 'planificada')
        RETURNING *`,
-      [id_menu || null, req.usuario.id, tipo_actividad, fecha_hora_salida, porciones_estimadas]
+      [menu.valor, req.usuario.id, tipo_actividad, fecha_hora_salida, porciones.valor]
     );
     res.status(201).json({
       mensaje: 'Actividad planificada correctamente.',

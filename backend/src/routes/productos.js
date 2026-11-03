@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
+const { leerNumero } = require('../validaciones');
+
+const CATEGORIAS = ['alimento', 'limpieza', 'mobiliario', 'ropa', 'descartable', 'dinero'];
+
+// Evita duplicados escritos distinto: "arroz" y "Arroz" son el mismo producto
+async function nombreRepetido(nombre, idExcluido = null) {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM productos WHERE LOWER(nombre) = LOWER($1) AND id_producto IS DISTINCT FROM $2',
+    [nombre, idExcluido]
+  );
+  return rows.length > 0;
+}
 
 // GET /productos - Listar productos activos (Todos los usuarios con sesión)
 router.get('/', autenticar, async (req, res) => {
@@ -16,25 +28,36 @@ router.get('/', autenticar, async (req, res) => {
   }
 });
 
-// POST /productos - Crear un nuevo producto (Dirección y Encargado de depósito)
-router.post('/', autenticar, permitirRoles('direccion', 'encargado_deposito'), async (req, res) => {
-  const { nombre, categoria, unidad_medida, minimo_deseable, perecedero } = req.body;
+// POST /productos - Crear un nuevo producto.
+// RF-03: quien registra un ingreso puede dar de alta en el momento un producto que no esté en el
+// catálogo. Si lo crea el referente de puerta, el mínimo queda en 0 y lo completa la dirección.
+router.post('/', autenticar, permitirRoles('encargado_deposito', 'referente_puerta'), async (req, res) => {
+  const { nombre, categoria, unidad_medida, perecedero } = req.body;
 
-  if (!nombre || !categoria || !unidad_medida) {
+  if (!nombre || !String(nombre).trim() || !categoria || !unidad_medida || !String(unidad_medida).trim()) {
     return res.status(400).json({ error: 'El nombre, la categoría y la unidad de medida son obligatorios.' });
   }
+  if (!CATEGORIAS.includes(categoria)) {
+    return res.status(400).json({ error: `Categoría inválida. Debe ser una de: ${CATEGORIAS.join(', ')}` });
+  }
 
-  const categoriasValidas = ['alimento', 'limpieza', 'mobiliario', 'ropa', 'descartable', 'dinero'];
-  if (!categoriasValidas.includes(categoria)) {
-    return res.status(400).json({ error: `Categoría inválida. Debe ser una de: ${categoriasValidas.join(', ')}` });
+  let minimo = 0;
+  if (req.usuario.rol !== 'referente_puerta' && req.body.minimo_deseable !== undefined && req.body.minimo_deseable !== '') {
+    const leido = leerNumero(req.body.minimo_deseable, 'Mínimo deseable', { permitirCero: true });
+    if (leido.error) return res.status(400).json({ error: leido.error });
+    minimo = leido.valor;
   }
 
   try {
+    if (await nombreRepetido(String(nombre).trim())) {
+      return res.status(400).json({ error: 'Ya existe un producto con ese nombre.' });
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO productos (nombre, categoria, unidad_medida, minimo_deseable, perecedero, activo)
        VALUES ($1, $2, $3, $4, $5, TRUE)
        RETURNING *`,
-      [nombre.trim(), categoria, unidad_medida.trim(), minimo_deseable || 0, Boolean(perecedero)]
+      [String(nombre).trim(), categoria, String(unidad_medida).trim(), minimo, Boolean(perecedero)]
     );
     res.status(201).json({
       mensaje: 'Producto creado exitosamente.',
@@ -62,10 +85,25 @@ router.put('/:id', autenticar, permitirRoles('direccion', 'encargado_deposito'),
     }
 
     const prodActual = prodExistente[0];
-    const nuevoNombre = nombre !== undefined ? nombre.trim() : prodActual.nombre;
+    const nuevoNombre = nombre !== undefined ? String(nombre).trim() : prodActual.nombre;
     const nuevaCategoria = categoria !== undefined ? categoria : prodActual.categoria;
-    const nuevaUnidad = unidad_medida !== undefined ? unidad_medida.trim() : prodActual.unidad_medida;
-    const nuevoMinimo = minimo_deseable !== undefined ? minimo_deseable : prodActual.minimo_deseable;
+    const nuevaUnidad = unidad_medida !== undefined ? String(unidad_medida).trim() : prodActual.unidad_medida;
+
+    if (!nuevoNombre || !nuevaUnidad) {
+      return res.status(400).json({ error: 'El nombre y la unidad de medida no pueden quedar vacíos.' });
+    }
+    if (!CATEGORIAS.includes(nuevaCategoria)) {
+      return res.status(400).json({ error: `Categoría inválida. Debe ser una de: ${CATEGORIAS.join(', ')}` });
+    }
+    let nuevoMinimo = prodActual.minimo_deseable;
+    if (minimo_deseable !== undefined) {
+      const leido = leerNumero(minimo_deseable, 'Mínimo deseable', { permitirCero: true });
+      if (leido.error) return res.status(400).json({ error: leido.error });
+      nuevoMinimo = leido.valor;
+    }
+    if (await nombreRepetido(nuevoNombre, prodActual.id_producto)) {
+      return res.status(400).json({ error: 'Ya existe otro producto con ese nombre.' });
+    }
     const nuevoPerecedero = perecedero !== undefined ? Boolean(perecedero) : prodActual.perecedero;
     const nuevoActivo = activo !== undefined ? Boolean(activo) : prodActual.activo;
 

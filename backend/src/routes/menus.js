@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
-
-class ErrorNegocio extends Error {}
+const { leerNumero, leerId } = require('../validaciones');
+const { ErrorNegocio } = require('../lotes');
 
 // GET /menu
 router.get('/', autenticar, async (req, res) => {
@@ -42,10 +42,14 @@ router.get('/', autenticar, async (req, res) => {
 
 // POST /menu
 router.post('/', autenticar, permitirRoles('direccion'), async (req, res) => {
-  const { nombre_menu, temporada, rendimiento_porciones, insumos } = req.body;
+  const { nombre_menu, temporada, insumos } = req.body;
 
-  if (!nombre_menu || !temporada || !rendimiento_porciones || !Array.isArray(insumos) || insumos.length === 0) {
+  if (!nombre_menu || !String(nombre_menu).trim() || !temporada || !Array.isArray(insumos) || insumos.length === 0) {
     return res.status(400).json({ error: 'Faltan datos obligatorios o la lista de insumos está vacía.' });
+  }
+  const rendimiento = leerNumero(req.body.rendimiento_porciones ?? 100, 'Rendimiento en porciones', { entero: true });
+  if (rendimiento.error) {
+    return res.status(400).json({ error: rendimiento.error });
   }
 
   if (!['invierno', 'verano'].includes(temporada)) {
@@ -61,20 +65,21 @@ router.post('/', autenticar, permitirRoles('direccion'), async (req, res) => {
       `INSERT INTO menus (nombre_menu, temporada, rendimiento_porciones)
        VALUES ($1, $2, $3)
        RETURNING *`,
-      [nombre_menu.trim(), temporada, rendimiento_porciones]
+      [String(nombre_menu).trim(), temporada, rendimiento.valor]
     );
     const idMenu = menuRows[0].id_menu;
 
     // insertar los insumos del menú
     for (const insumo of insumos) {
-      const { id_producto, cantidad_por_porcion } = insumo;
-      if (!id_producto || !cantidad_por_porcion || cantidad_por_porcion <= 0) {
-        throw new ErrorNegocio('Cada insumo debe tener un id_producto y una cantidad por porción válida.');
+      const producto = leerId(insumo && insumo.id_producto, 'Insumo (id_producto)');
+      const cantidad = leerNumero(insumo && insumo.cantidad_por_porcion, 'Cantidad por porción');
+      if (producto.error || cantidad.error) {
+        throw new ErrorNegocio(producto.error || cantidad.error);
       }
       await client.query(
         `INSERT INTO menu_insumos (id_menu, id_producto, cantidad_por_porcion)
          VALUES ($1, $2, $3)`,
-        [idMenu, id_producto, cantidad_por_porcion]
+        [idMenu, producto.valor, cantidad.valor]
       );
     }
 

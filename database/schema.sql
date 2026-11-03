@@ -26,15 +26,20 @@ CREATE TABLE productos (
   categoria VARCHAR(20) NOT NULL
     CHECK (categoria IN ('alimento','limpieza','mobiliario','ropa','descartable','dinero')),
   unidad_medida VARCHAR(10) NOT NULL,
-  minimo_deseable NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (minimo_deseable >= 0),
+  minimo_deseable NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (minimo_deseable >= 0 AND minimo_deseable <> 'NaN'),
   perecedero BOOLEAN NOT NULL DEFAULT FALSE,
   activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+-- Un mismo producto no puede cargarse dos veces con distinta mayúscula ("arroz" y "Arroz")
+CREATE UNIQUE INDEX productos_nombre_unico ON productos (LOWER(nombre));
+
+-- Las fechas y horas se guardan con zona horaria (TIMESTAMPTZ): así la hora es la misma
+-- aunque el servidor esté en otro huso horario que la organización.
 CREATE TABLE remitos (
   id_remito SERIAL PRIMARY KEY,
   nro_remito VARCHAR(20) UNIQUE NOT NULL,
-  fecha_hora_ingreso TIMESTAMP NOT NULL DEFAULT NOW(),
+  fecha_hora_ingreso TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   id_usuario INT NOT NULL REFERENCES usuarios(id_usuario),
   donante_nombre VARCHAR(120),
   anonima BOOLEAN NOT NULL DEFAULT FALSE
@@ -51,7 +56,7 @@ CREATE TABLE menu_insumos (
   id_menu_insumo SERIAL PRIMARY KEY,
   id_menu INT NOT NULL REFERENCES menus(id_menu) ON DELETE CASCADE,
   id_producto INT NOT NULL REFERENCES productos(id_producto),
-  cantidad_por_porcion NUMERIC(10,4) NOT NULL CHECK (cantidad_por_porcion > 0),
+  cantidad_por_porcion NUMERIC(10,4) NOT NULL CHECK (cantidad_por_porcion > 0 AND cantidad_por_porcion <> 'NaN'),
   UNIQUE (id_menu, id_producto)
 );
 
@@ -61,7 +66,7 @@ CREATE TABLE actividades (
   id_coordinador INT NOT NULL REFERENCES usuarios(id_usuario),
   tipo_actividad VARCHAR(20) NOT NULL
     CHECK (tipo_actividad IN ('desayuno','merienda','cena','salida_barrios','ropero','evento')),
-  fecha_hora_salida TIMESTAMP NOT NULL,
+  fecha_hora_salida TIMESTAMPTZ NOT NULL,
   porciones_estimadas INT NOT NULL CHECK (porciones_estimadas > 0),
   porciones_reales INT CHECK (porciones_reales >= 0),
   estado VARCHAR(15) NOT NULL DEFAULT 'planificada'
@@ -80,7 +85,7 @@ CREATE TABLE donaciones (
   id_producto INT NOT NULL REFERENCES productos(id_producto),
   id_remito INT NOT NULL REFERENCES remitos(id_remito),
   id_actividad_reserva INT REFERENCES actividades(id_actividad),
-  cantidad_inicial NUMERIC(10,2) NOT NULL CHECK (cantidad_inicial > 0),
+  cantidad_inicial NUMERIC(10,2) NOT NULL CHECK (cantidad_inicial > 0 AND cantidad_inicial <> 'NaN'),
   fecha_vencimiento DATE,
   estado VARCHAR(20) NOT NULL DEFAULT 'recibida'
     CHECK (estado IN ('recibida','disponible','proxima_a_vencer','reservada',
@@ -96,9 +101,11 @@ CREATE TABLE movimientos (
   id_destino INT REFERENCES destinos(id_destino),
   tipo_movimiento VARCHAR(15) NOT NULL
     CHECK (tipo_movimiento IN ('ingreso','salida','derivacion','baja','ajuste')),
-  cantidad NUMERIC(10,2) NOT NULL,   -- en ajustes puede ser negativa
+  -- Ingresos y ajustes positivos suman; salidas, derivaciones, bajas y ajustes negativos restan.
+  -- El stock es la suma de las cantidades (RNF-08). NaN se rechaza: rompería el stock para siempre.
+  cantidad NUMERIC(10,2) NOT NULL CHECK (cantidad <> 0 AND cantidad <> 'NaN'),
   motivo VARCHAR(200),
-  fecha_hora TIMESTAMP NOT NULL DEFAULT NOW()
+  fecha_hora TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE pedidos_reposicion (
@@ -106,10 +113,10 @@ CREATE TABLE pedidos_reposicion (
   id_actividad INT NOT NULL REFERENCES actividades(id_actividad),
   id_producto INT NOT NULL REFERENCES productos(id_producto),
   id_usuario INT NOT NULL REFERENCES usuarios(id_usuario),
-  cantidad_faltante NUMERIC(10,2) NOT NULL CHECK (cantidad_faltante > 0),
+  cantidad_faltante NUMERIC(10,2) NOT NULL CHECK (cantidad_faltante > 0 AND cantidad_faltante <> 'NaN'),
   estado VARCHAR(15) NOT NULL DEFAULT 'pendiente'
     CHECK (estado IN ('pendiente','gestionado','recibido')),
-  fecha_hora TIMESTAMP NOT NULL DEFAULT NOW()
+  fecha_hora TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Refuerzo de RNF-07 a nivel base de datos: bloquea UPDATE y DELETE
