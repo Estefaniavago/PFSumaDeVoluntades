@@ -139,7 +139,7 @@ export default function Ingreso() {
         <h2>Donación registrada</h2>
         <div className="mensaje-ok" role="status">
           <b>Remito {resultado.remito}</b>
-          <ul style={{ margin: '6px 0 0 18px' }}>{resultado.detalle.map(d => <li key={d}>{d}</li>)}</ul>
+          <ul>{resultado.detalle.map(d => <li key={d}>{d}</li>)}</ul>
         </div>
         <p className="mini" style={{ marginTop: 10 }}>
           Quedó registrado que la cargaste vos, {usuario.nombre.split(' ')[0]}, con la fecha y la hora.

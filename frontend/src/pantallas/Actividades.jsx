@@ -215,9 +215,9 @@ function Detalle() {
   if (salida) {
     return (
       <div className="angosta">
-        <div className="mensaje-ok" style={{ marginTop: 0 }}>
-          <b>Salida registrada</b>
-          <p>{titulo}</p>
+        <h2>Salida registrada</h2>
+        <div className="mensaje-ok" role="status">
+          <b>{titulo}</b>
           <ul>
             {salida.map(i => (
               <li key={i.id_producto}>
@@ -226,8 +226,10 @@ function Detalle() {
               </li>
             ))}
           </ul>
-          <p>Quedó registrado que la hiciste vos, {usuario.nombre.split(' ')[0]}, con la fecha y la hora.</p>
         </div>
+        <p className="mini" style={{ marginTop: 10 }}>
+          Quedó registrado que la hiciste vos, {usuario.nombre.split(' ')[0]}, con la fecha y la hora.
+        </p>
         <Link to="/actividades" className="boton secundario" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
           Volver a las actividades
         </Link>
