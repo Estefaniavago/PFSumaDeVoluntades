@@ -93,6 +93,19 @@ tr.lotes td { border-top: 0; padding-top: 0; background: #F7F8F9; }
 .movimiento .suma { color: var(--verde); white-space: nowrap; }
 .movimiento .resta { color: var(--bordo); white-space: nowrap; }
 .tarjeta.filtros label { margin-top: 8px; }
+.enlace-suave { color: inherit; text-decoration: underline dotted; }
+.remito { padding: 20px; }
+.remito-encabezado { display: flex; gap: 14px; align-items: center; border-bottom: 2px solid var(--rojo); padding-bottom: 12px; margin-bottom: 12px; }
+.remito-encabezado img { height: 44px; width: auto; }
+.remito-encabezado h2 { margin: 2px 0; }
+.remito-datos { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; margin-bottom: 14px; }
+.remito-datos dt { color: var(--gris); }
+.remito-datos dd { margin: 0; }
+@media print {
+  .encabezado, .navegacion, .no-imprimir { display: none !important; }
+  body, .app { background: #fff; }
+  .remito { border: 0; box-shadow: none; padding: 0; }
+}
 .lista-simple { padding-left: 18px; font-size: 13px; line-height: 1.6; }
 .subtitulo { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); margin: 18px 0 8px; }
 

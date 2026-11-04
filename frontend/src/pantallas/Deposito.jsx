@@ -125,7 +125,7 @@ export default function Deposito() {
                           <div className="lote" key={l.id_donacion}>
                             <div>
                               <strong>{num(l.cantidad_actual)} {p.unidad_medida}</strong>
-                              <span className="mini"> de {num(l.cantidad_inicial)} · remito {l.nro_remito} del {fecha(l.fecha_hora_ingreso)}</span>
+                              <span className="mini"> de {num(l.cantidad_inicial)} · <Link to={`/remitos/${l.id_remito}`} className="enlace-suave">remito {l.nro_remito}</Link> del {fecha(l.fecha_hora_ingreso)}</span>
                             </div>
                             <div className="mini">
                               {l.fecha_vencimiento ? `${vencido ? 'Venció' : 'Vence'} el ${fecha(l.fecha_vencimiento)}` : 'Sin vencimiento'}

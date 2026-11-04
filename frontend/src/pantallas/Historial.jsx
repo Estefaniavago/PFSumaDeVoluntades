@@ -4,6 +4,7 @@ import { api } from '../api';
 import { num, fecha, fechaHora, TIPOS_ACTIVIDAD } from '../formato';
 
 // Historial de movimientos del inventario (RF-08, RF-13): quién hizo qué, cuándo y por qué.
+// Se filtra por producto, tipo, actividad, usuario y fechas.
 // Los filtros quedan en la dirección (por ejemplo ?lote=12), así se puede llegar desde un lote.
 
 const TIPOS = {
@@ -29,6 +30,7 @@ export default function Historial() {
   const [movimientos, setMovimientos] = useState(null);
   const [productos, setProductos] = useState([]);
   const [actividades, setActividades] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [error, setError] = useState('');
 
   const filtros = {
@@ -36,14 +38,15 @@ export default function Historial() {
     producto: parametros.get('producto') || '',
     tipo: parametros.get('tipo') || '',
     actividad: parametros.get('actividad') || '',
+    usuario: parametros.get('usuario') || '',
     desde: parametros.get('desde') || '',
     hasta: parametros.get('hasta') || '',
   };
   const consulta = parametros.toString();
 
   useEffect(() => {
-    Promise.all([api('/productos'), api('/actividades')])
-      .then(([p, a]) => { setProductos(p.filter(x => x.categoria !== 'dinero')); setActividades(a); })
+    Promise.all([api('/productos'), api('/actividades'), api('/movimientos/usuarios')])
+      .then(([p, a, u]) => { setProductos(p.filter(x => x.categoria !== 'dinero')); setActividades(a); setUsuarios(u); })
       .catch(err => setError(err.message));
   }, []);
 
@@ -52,7 +55,8 @@ export default function Historial() {
     const q = new URLSearchParams();
     const pasar = (de, a) => { if (f.get(de)) q.set(a, f.get(de)); };
     pasar('lote', 'id_donacion'); pasar('producto', 'id_producto'); pasar('tipo', 'tipo_movimiento');
-    pasar('actividad', 'id_actividad'); pasar('desde', 'fecha_desde'); pasar('hasta', 'fecha_hasta');
+    pasar('actividad', 'id_actividad'); pasar('usuario', 'id_usuario');
+    pasar('desde', 'fecha_desde'); pasar('hasta', 'fecha_hasta');
     api('/movimientos' + (q.toString() ? '?' + q : ''))
       .then(lista => { setMovimientos(lista); setError(''); })
       .catch(err => setError(err.message));
@@ -95,13 +99,24 @@ export default function Historial() {
             </select>
           </div>
         </div>
-        <label htmlFor="f-actividad">Actividad</label>
-        <select id="f-actividad" value={filtros.actividad} onChange={cambiar('actividad')}>
-          <option value="">Todas</option>
-          {actividades.map(a => (
-            <option key={a.id_actividad} value={a.id_actividad}>{TIPOS_ACTIVIDAD[a.tipo_actividad]} del {fecha(a.fecha_hora_salida)}</option>
-          ))}
-        </select>
+        <div className="dos">
+          <div>
+            <label htmlFor="f-actividad">Actividad</label>
+            <select id="f-actividad" value={filtros.actividad} onChange={cambiar('actividad')}>
+              <option value="">Todas</option>
+              {actividades.map(a => (
+                <option key={a.id_actividad} value={a.id_actividad}>{TIPOS_ACTIVIDAD[a.tipo_actividad]} del {fecha(a.fecha_hora_salida)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="f-usuario">Registró</label>
+            <select id="f-usuario" value={filtros.usuario} onChange={cambiar('usuario')}>
+              <option value="">Cualquiera</option>
+              {usuarios.map(u => <option key={u.id_usuario} value={u.id_usuario}>{u.nombre}</option>)}
+            </select>
+          </div>
+        </div>
         <div className="dos">
           <div>
             <label htmlFor="f-desde">Desde</label>

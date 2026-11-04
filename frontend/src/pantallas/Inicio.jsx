@@ -17,6 +17,7 @@ export default function Inicio() {
   const verAlertas = puede.verAlertas(usuario.rol);
   const [alertas, setAlertas] = useState(null);
   const [actividades, setActividades] = useState([]);
+  const [faltantes, setFaltantes] = useState({}); // id_actividad -> insumos que no alcanzan
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -25,11 +26,18 @@ export default function Inicio() {
       .then(([a, act]) => {
         setAlertas(a);
         // Próximas actividades planificadas, de la más cercana a la más lejana
-        setActividades(act
+        const proximas = act
           .filter(x => x.estado === 'planificada' && diasHasta(x.fecha_hora_salida) >= 0)
           .sort((x, y) => new Date(x.fecha_hora_salida) - new Date(y.fecha_hora_salida))
-          .slice(0, 3));
+          .slice(0, 3);
+        setActividades(proximas);
+        // Para cada una, qué insumos no alcanzan, así se repone con tiempo (RF-19)
+        return Promise.all(proximas.filter(x => x.id_menu).map(x =>
+          api(`/actividades/${x.id_actividad}/presupuesto`)
+            .then(pr => [x.id_actividad, pr.insumos.filter(i => i.faltante > 0)])
+            .catch(() => [x.id_actividad, null])));
       })
+      .then(lista => setFaltantes(Object.fromEntries(lista || [])))
       .catch(err => setError(err.message));
   }, [verAlertas]);
 
@@ -87,6 +95,15 @@ export default function Inicio() {
                 style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
             <h3>{TIPOS_ACTIVIDAD[a.tipo_actividad]}: {fechaHora(a.fecha_hora_salida)}</h3>
             <p className="mini">{a.porciones_estimadas} porciones · {a.nombre_menu || 'sin menú asignado'}</p>
+            {faltantes[a.id_actividad] && (
+              <p style={{ marginTop: 8 }}>
+                {faltantes[a.id_actividad].length
+                  ? <span className="etiqueta falta">
+                      Falta {faltantes[a.id_actividad].map(i => `${i.nombre.toLowerCase()} (${num(i.faltante)} ${i.unidad_medida})`).join(', ')}
+                    </span>
+                  : <span className="etiqueta ok">Alcanza lo que hay en el depósito</span>}
+              </p>
+            )}
           </Link>
         ))}
       </div>

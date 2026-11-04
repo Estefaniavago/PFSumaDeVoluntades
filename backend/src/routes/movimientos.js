@@ -103,4 +103,24 @@ router.get('/',
   }
 );
 
+// GET /movimientos/usuarios - Personas que registraron algún movimiento, para filtrar el historial
+// por usuario (RF-13). Solo nombre e id: el listado completo de usuarios es de la dirección.
+router.get('/usuarios',
+  autenticar,
+  permitirRoles('encargado_deposito', 'coordinador_actividad', 'direccion'),
+  async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT u.id_usuario, u.nombre
+         FROM movimientos m JOIN usuarios u ON u.id_usuario = m.id_usuario
+         ORDER BY u.nombre`
+      );
+      res.json(rows);
+    } catch (err) {
+      console.error('Error al listar usuarios del historial:', err);
+      res.status(500).json({ error: 'No se pudo obtener la lista de usuarios.' });
+    }
+  }
+);
+
 module.exports = router;

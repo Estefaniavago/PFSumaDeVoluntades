@@ -102,7 +102,7 @@ export default function Ingreso() {
       const datosDonante = { anonima, donante_nombre: anonima ? null : donante.trim() };
       if (tipo === 'dinero') {
         const r = await api('/aportes', { metodo: 'POST', datos: { ...datosDonante, monto: Number(monto) } });
-        setResultado({ remito: r.remito.nro_remito, detalle: [`Aporte de $ ${num(monto)}`] });
+        setResultado({ remito: r.remito.nro_remito, idRemito: r.remito.id_remito, detalle: [`Aporte de $ ${num(monto)}`] });
       } else {
         const r = await api('/donaciones', {
           metodo: 'POST',
@@ -118,6 +118,7 @@ export default function Ingreso() {
         });
         setResultado({
           remito: r.remito.nro_remito,
+          idRemito: r.remito.id,
           detalle: items.map(it => `${num(it.cantidad)} ${producto(it.id_producto).unidad_medida} de ${producto(it.id_producto).nombre}`),
         });
       }
@@ -145,6 +146,7 @@ export default function Ingreso() {
           Quedó registrado que la cargaste vos, {usuario.nombre.split(' ')[0]}, con la fecha y la hora.
         </p>
         <button className="boton" onClick={otraDonacion}>Cargar otra donación</button>
+        <Link to={`/remitos/${resultado.idRemito}`} className="boton secundario" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>Ver o imprimir el remito</Link>
         {puede.verStock(usuario.rol) && <Link to="/deposito" className="boton secundario" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>Ver el depósito</Link>}
       </div>
     );

@@ -6,6 +6,7 @@ import Inicio from './pantallas/Inicio';
 import Ingreso from './pantallas/Ingreso';
 import Deposito from './pantallas/Deposito';
 import Historial from './pantallas/Historial';
+import Remito from './pantallas/Remito';
 import Actividades from './pantallas/Actividades';
 import Gestion from './pantallas/Gestion';
 
@@ -21,6 +22,8 @@ function Rutas() {
           <SoloPara pantalla="ingreso" titulo="Ingresar una donación"><Ingreso /></SoloPara>} />
         <Route path="deposito" element={
           <SoloPara pantalla="deposito" titulo="Depósito central"><Deposito /></SoloPara>} />
+        {/* El remito lo ve cualquier perfil: también el referente que cargó la donación */}
+        <Route path="remitos/:id" element={<Remito />} />
         <Route path="deposito/historial" element={
           <SoloPara pantalla="deposito" titulo="Movimientos"><Historial /></SoloPara>} />
         <Route path="actividades/*" element={
