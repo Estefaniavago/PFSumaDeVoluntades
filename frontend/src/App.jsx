@@ -5,6 +5,7 @@ import Login from './pantallas/Login';
 import Inicio from './pantallas/Inicio';
 import Ingreso from './pantallas/Ingreso';
 import Deposito from './pantallas/Deposito';
+import Historial from './pantallas/Historial';
 import Actividades from './pantallas/Actividades';
 import Gestion from './pantallas/Gestion';
 
@@ -20,6 +21,8 @@ function Rutas() {
           <SoloPara pantalla="ingreso" titulo="Ingresar una donación"><Ingreso /></SoloPara>} />
         <Route path="deposito" element={
           <SoloPara pantalla="deposito" titulo="Depósito central"><Deposito /></SoloPara>} />
+        <Route path="deposito/historial" element={
+          <SoloPara pantalla="deposito" titulo="Movimientos"><Historial /></SoloPara>} />
         <Route path="actividades/*" element={
           <SoloPara pantalla="actividades" titulo="Actividades"><Actividades /></SoloPara>} />
         <Route path="gestion/*" element={

@@ -34,6 +34,8 @@ export const puede = {
   crearProducto: rol => ['referente_puerta', 'encargado_deposito', 'direccion'].includes(rol),
   editarProductos: rol => ['encargado_deposito', 'direccion'].includes(rol),
   registrarSalida: rol => ['encargado_deposito', 'direccion'].includes(rol),
+  // Ajustes, bajas y derivaciones de un lote (RF-06, RF-07, RF-12)
+  corregirStock: rol => ['encargado_deposito', 'direccion'].includes(rol),
   organizarActividades: rol => ['coordinador_actividad', 'direccion'].includes(rol),
   editarMenus: rol => rol === 'direccion',
   gestionarUsuarios: rol => rol === 'direccion',
