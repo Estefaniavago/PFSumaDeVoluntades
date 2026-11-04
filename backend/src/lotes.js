@@ -1,7 +1,12 @@
 // Operaciones comunes sobre un lote (una fila de "donaciones") dentro de una transacción.
 
-// Error de negocio: se responde con 400 y el mensaje tal cual.
-class ErrorNegocio extends Error {}
+// Error de negocio: se responde con el mensaje tal cual y el código indicado (400 si no se indica).
+class ErrorNegocio extends Error {
+  constructor(mensaje, status = 400) {
+    super(mensaje);
+    this.status = status;
+  }
+}
 
 // Bloquea el lote hasta el final de la transacción (evita que dos operaciones simultáneas
 // lo dejen en negativo) y devuelve su saldo, calculado sumando los movimientos (RNF-08).

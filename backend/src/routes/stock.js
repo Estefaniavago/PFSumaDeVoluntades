@@ -22,6 +22,8 @@ router.get('/', autenticar, permitirRoles('coordinador_actividad', 'encargado_de
             json_build_object(
               'id_donacion', l.id_donacion,
               'id_remito', l.id_remito,
+              'nro_remito', l.nro_remito,
+              'fecha_hora_ingreso', l.fecha_hora_ingreso,
               'fecha_vencimiento', l.fecha_vencimiento,
               'estado_lote', l.estado,
               'cantidad_inicial', l.cantidad_inicial,
@@ -32,11 +34,12 @@ router.get('/', autenticar, permitirRoles('coordinador_actividad', 'encargado_de
         ) AS lotes
       FROM productos p
       LEFT JOIN (
-        SELECT d.id_donacion, d.id_producto, d.id_remito, d.fecha_vencimiento, d.estado,
-               d.cantidad_inicial, COALESCE(SUM(m.cantidad), 0) AS saldo
+        SELECT d.id_donacion, d.id_producto, d.id_remito, r.nro_remito, r.fecha_hora_ingreso,
+               d.fecha_vencimiento, d.estado, d.cantidad_inicial, COALESCE(SUM(m.cantidad), 0) AS saldo
         FROM donaciones d
+        JOIN remitos r ON r.id_remito = d.id_remito
         LEFT JOIN movimientos m ON m.id_donacion = d.id_donacion
-        GROUP BY d.id_donacion
+        GROUP BY d.id_donacion, r.id_remito
       ) l ON l.id_producto = p.id_producto
       WHERE p.activo = TRUE
       GROUP BY p.id_producto
