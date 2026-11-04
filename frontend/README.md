@@ -1,16 +1,40 @@
-# React + Vite
+# Frontend · Gestión de donaciones
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplicación web de Suma de Voluntades, hecha con React y Vite. Se usa desde el celular o la computadora y se puede instalar como aplicación (PWA).
 
-Currently, two official plugins are available:
+## Puesta en marcha
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Necesita el backend funcionando (ver el README de la raíz del repositorio).
 
-## React Compiler
+```bash
+npm install
+cp .env.example .env   # opcional: VITE_API_URL, por defecto http://localhost:3000
+npm run dev            # http://localhost:5173
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Otros comandos:
 
-## Expanding the Oxlint configuration
+| Comando | Para qué |
+|---|---|
+| `npm run build` | Arma la versión para publicar en `dist/` |
+| `npm run preview` | Sirve `dist/` para probarla (incluye el modo instalable) |
+| `npm run lint` | Revisa el código |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Estructura
+
+| Archivo o carpeta | Qué tiene |
+|---|---|
+| `src/api.js` | Llamadas a la API, con el token de la sesión |
+| `src/sesion.jsx` | Inicio y cierre de sesión |
+| `src/permisos.js` | Qué pantallas y acciones ve cada perfil |
+| `src/formato.js` | Números y fechas en formato argentino |
+| `src/catalogo.js` | Categorías y unidades de los productos |
+| `src/componentes/Estructura.jsx` | Encabezado, navegación por perfil y aviso de pantalla no disponible |
+| `src/pantallas/` | Inicio de sesión, Inicio, Ingreso, Depósito, Actividades y Gestión |
+| `public/manifest.webmanifest`, `public/sw.js` | Lo que permite instalarla en el celular |
+
+## Publicación
+
+- `VITE_API_URL` tiene que apuntar al backend publicado; se toma al hacer `npm run build`.
+- Como la navegación se resuelve en el navegador, el servidor tiene que devolver `index.html` para cualquier ruta (por ejemplo `/deposito`). En Render, como sitio estático, se configura con una regla *rewrite* de `/*` a `/index.html`.
+- El modo instalable solo se activa en la versión publicada y con HTTPS (o en `localhost`).

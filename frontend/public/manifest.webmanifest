@@ -1,0 +1,17 @@
+{
+  "name": "Gestión de donaciones · Suma de Voluntades",
+  "short_name": "Suma de Voluntades",
+  "description": "Ingreso de donaciones, stock del depósito y salidas de mercadería de la Asociación Civil Suma de Voluntades.",
+  "lang": "es-AR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F5F6",
+  "theme_color": "#E30613",
+  "icons": [
+    { "src": "/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
