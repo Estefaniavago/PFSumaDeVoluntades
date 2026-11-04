@@ -78,6 +78,7 @@ tr.falta.fila-producto:hover td { background: #F9E8EB; }
 tr.lotes td { border-top: 0; padding-top: 0; background: #F7F8F9; }
 .lote { padding: 8px 4px; border-top: 1px dashed var(--borde); }
 .lote:first-child { border-top: 0; }
+.subtitulo { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); margin: 18px 0 8px; }
 
 .bloqueado { text-align: center; padding: 30px 16px; color: var(--gris); }
 .bloqueado strong { display: block; color: var(--negro); margin-bottom: 6px; }

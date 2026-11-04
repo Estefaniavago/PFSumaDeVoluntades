@@ -5,6 +5,7 @@ import Login from './pantallas/Login';
 import Inicio from './pantallas/Inicio';
 import Ingreso from './pantallas/Ingreso';
 import Deposito from './pantallas/Deposito';
+import Actividades from './pantallas/Actividades';
 
 // Pantallas que todavía no están desarrolladas
 function EnConstruccion({ titulo }) {
@@ -29,7 +30,7 @@ function Rutas() {
         <Route path="deposito" element={
           <SoloPara pantalla="deposito" titulo="Depósito central"><Deposito /></SoloPara>} />
         <Route path="actividades/*" element={
-          <SoloPara pantalla="actividades" titulo="Actividades"><EnConstruccion titulo="Actividades" /></SoloPara>} />
+          <SoloPara pantalla="actividades" titulo="Actividades"><Actividades /></SoloPara>} />
         <Route path="gestion/*" element={
           <SoloPara pantalla="gestion" titulo="Gestión"><EnConstruccion titulo="Gestión" /></SoloPara>} />
         <Route path="*" element={<Navigate to="/" replace />} />
