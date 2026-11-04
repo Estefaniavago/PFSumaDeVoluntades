@@ -72,6 +72,12 @@ td { padding: 9px 6px; border-top: 1px solid var(--borde); vertical-align: top; 
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.falta td { background: #FCF2F3; }
 tr.falta td:first-child { box-shadow: inset 3px 0 0 var(--bordo); }
+tr.fila-producto { cursor: pointer; }
+tr.fila-producto:hover td { background: #F4F5F6; }
+tr.falta.fila-producto:hover td { background: #F9E8EB; }
+tr.lotes td { border-top: 0; padding-top: 0; background: #F7F8F9; }
+.lote { padding: 8px 4px; border-top: 1px dashed var(--borde); }
+.lote:first-child { border-top: 0; }
 
 .bloqueado { text-align: center; padding: 30px 16px; color: var(--gris); }
 .bloqueado strong { display: block; color: var(--negro); margin-bottom: 6px; }
