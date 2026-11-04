@@ -47,6 +47,34 @@ router.post('/destinos', autenticar, permitirRoles('direccion', 'encargado_depos
   }
 });
 
+// PUT /destinos/:id - Corregir el nombre o el tipo de un destino. No se borran: las derivaciones
+// ya registradas tienen que seguir mostrando a dónde fue la mercadería (RNF-07).
+router.put('/destinos/:id', autenticar, permitirRoles('direccion', 'encargado_deposito'), async (req, res) => {
+  const id = leerId(req.params.id, 'Destino');
+  if (id.error) return res.status(400).json({ error: id.error });
+  const { nombre, tipo } = req.body;
+
+  if (nombre !== undefined && !String(nombre).trim()) {
+    return res.status(400).json({ error: 'El nombre del destino no puede quedar vacío.' });
+  }
+  if (tipo !== undefined && !['comedor', 'otra_org'].includes(tipo)) {
+    return res.status(400).json({ error: "El tipo de destino debe ser 'comedor' u 'otra_org'." });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE destinos SET nombre = COALESCE($1, nombre), tipo = COALESCE($2, tipo)
+       WHERE id_destino = $3 RETURNING *`,
+      [nombre !== undefined ? String(nombre).trim() : null, tipo || null, id.valor]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Destino no encontrado.' });
+    res.json({ mensaje: 'Destino actualizado correctamente.', destino: rows[0] });
+  } catch (err) {
+    console.error('Error al actualizar destino:', err);
+    res.status(500).json({ error: 'No se pudo actualizar el destino.' });
+  }
+});
+
 
 // POST /derivaciones
 router.post('/',

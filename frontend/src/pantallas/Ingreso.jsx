@@ -4,12 +4,8 @@ import { api } from '../api';
 import { useSesion } from '../sesion';
 import { puede } from '../permisos';
 import { num, fechaHora, TIPOS_ACTIVIDAD } from '../formato';
+import { CATEGORIAS, UNIDADES } from '../catalogo';
 
-const CATEGORIAS = [
-  ['alimento', 'Alimento'], ['descartable', 'Descartable'], ['limpieza', 'Limpieza'],
-  ['ropa', 'Ropa'], ['mobiliario', 'Mobiliario'],
-];
-const UNIDADES = ['kg', 'litros', 'unidades', 'cajas', 'paquetes'];
 const NUEVO = 'nuevo';
 const hoy = () => new Date().toLocaleDateString('en-CA');
 const itemVacio = () => ({ id_producto: '', cantidad: '', fecha_vencimiento: '' });

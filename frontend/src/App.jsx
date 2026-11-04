@@ -6,16 +6,7 @@ import Inicio from './pantallas/Inicio';
 import Ingreso from './pantallas/Ingreso';
 import Deposito from './pantallas/Deposito';
 import Actividades from './pantallas/Actividades';
-
-// Pantallas que todavía no están desarrolladas
-function EnConstruccion({ titulo }) {
-  return (
-    <>
-      <h2>{titulo}</h2>
-      <div className="bloqueado"><strong>En construcción</strong>Esta pantalla se suma en las próximas entregas.</div>
-    </>
-  );
-}
+import Gestion from './pantallas/Gestion';
 
 function Rutas() {
   const { usuario } = useSesion();
@@ -32,7 +23,7 @@ function Rutas() {
         <Route path="actividades/*" element={
           <SoloPara pantalla="actividades" titulo="Actividades"><Actividades /></SoloPara>} />
         <Route path="gestion/*" element={
-          <SoloPara pantalla="gestion" titulo="Gestión"><EnConstruccion titulo="Gestión" /></SoloPara>} />
+          <SoloPara pantalla="gestion" titulo="Gestión"><Gestion /></SoloPara>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -3,8 +3,31 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
+const { leerId } = require('../validaciones');
 
-class ErrorNegocio extends Error {}
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LARGO_MINIMO_CLAVE = 8;
+
+// Revisa los datos que llegan para crear o editar un usuario. En la edición los campos que no
+// vienen se dejan como están, por eso solo se valida lo que se manda.
+function validarUsuario({ nombre, email, password, id_rol }, esAlta) {
+  if (esAlta && (!nombre || !email || !password || !id_rol)) {
+    return 'Completá el nombre, el email, la contraseña y el perfil.';
+  }
+  if (nombre !== undefined && !String(nombre).trim()) return 'El nombre no puede quedar vacío.';
+  if (nombre !== undefined && String(nombre).trim().length > 100) return 'El nombre es demasiado largo.';
+  if (email !== undefined && !EMAIL_VALIDO.test(String(email).trim())) return 'El email no tiene un formato válido.';
+  if (password && String(password).length < LARGO_MINIMO_CLAVE) {
+    return `La contraseña tiene que tener al menos ${LARGO_MINIMO_CLAVE} caracteres.`;
+  }
+  if (id_rol !== undefined && leerId(id_rol, 'Perfil').error) return 'Elegí un perfil válido.';
+  return null;
+}
+
+async function rolExiste(idRol) {
+  const { rows } = await pool.query('SELECT 1 FROM roles WHERE id_rol = $1', [idRol]);
+  return rows.length > 0;
+}
 
 // GET /usuarios
 router.get('/', autenticar, permitirRoles('direccion'), async (req, res) => {
@@ -23,31 +46,36 @@ router.get('/', autenticar, permitirRoles('direccion'), async (req, res) => {
   }
 });
 
+// GET /usuarios/roles - Perfiles disponibles, para el formulario de alta y edición
+router.get('/roles', autenticar, permitirRoles('direccion'), async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT id_rol, nombre_rol, descripcion FROM roles ORDER BY id_rol');
+    res.json(rows);
+  } catch (err) {
+    console.error('Error al listar perfiles:', err);
+    res.status(500).json({ error: 'No se pudo consultar el listado de perfiles.' });
+  }
+});
+
 // POST /usuarios
 router.post('/', autenticar, permitirRoles('direccion'), async (req, res) => {
   const { nombre, email, password, id_rol } = req.body;
 
-  if (!nombre || !email || !password || !id_rol) {
-    return res.status(400).json({ error: 'Faltan datos obligatorios: nombre, email, password y id_rol.' });
-  }
+  const error = validarUsuario(req.body, true);
+  if (error) return res.status(400).json({ error });
 
   try {
-    // verificar que el rol exista
-    const { rows: rolRows } = await pool.query('SELECT id_rol FROM roles WHERE id_rol = $1', [id_rol]);
-    if (rolRows.length === 0) {
-      return res.status(400).json({ error: 'El rol especificado no es válido.' });
+    if (!(await rolExiste(id_rol))) {
+      return res.status(400).json({ error: 'El perfil elegido no es válido.' });
     }
 
-    // generar el hash de la contraseña
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const passwordHash = await bcrypt.hash(String(password), 10);
 
-    // insertar el usuario
     const { rows } = await pool.query(
       `INSERT INTO usuarios (nombre, email, password_hash, id_rol, activo)
        VALUES ($1, $2, $3, $4, TRUE)
        RETURNING id_usuario, nombre, email, id_rol, activo`,
-      [nombre.trim(), email.trim().toLowerCase(), passwordHash, id_rol]
+      [String(nombre).trim(), String(email).trim().toLowerCase(), passwordHash, id_rol]
     );
 
     res.status(201).json({
@@ -65,33 +93,46 @@ router.post('/', autenticar, permitirRoles('direccion'), async (req, res) => {
 
 // PUT /usuarios/:id
 router.put('/:id', autenticar, permitirRoles('direccion'), async (req, res) => {
-  const { id } = req.params;
+  const id = leerId(req.params.id, 'Usuario');
+  if (id.error) return res.status(400).json({ error: id.error });
   const { nombre, email, password, id_rol, activo } = req.body;
 
+  const error = validarUsuario(req.body, false);
+  if (error) return res.status(400).json({ error });
+
+  // Quien está usando el sistema no puede dejarse sin acceso a sí mismo
+  if (id.valor === req.usuario.id && activo === false) {
+    return res.status(400).json({ error: 'No podés desactivar tu propio usuario.' });
+  }
+
   try {
-    const { rows: userExistente } = await pool.query('SELECT * FROM usuarios WHERE id_usuario = $1', [id]);
+    const { rows: userExistente } = await pool.query('SELECT * FROM usuarios WHERE id_usuario = $1', [id.valor]);
     if (userExistente.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado.' });
     }
 
     const uActual = userExistente[0];
-    const nuevoNombre = nombre !== undefined ? nombre.trim() : uActual.nombre;
-    const nuevoEmail = email !== undefined ? email.trim().toLowerCase() : uActual.email;
-    const nuevoRol = id_rol !== undefined ? id_rol : uActual.id_rol;
-    const nuevoActivo = activo !== undefined ? Boolean(activo) : uActual.activo;
-
-    let passwordHash = uActual.password_hash;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      passwordHash = await bcrypt.hash(password, salt);
+    const nuevoRol = id_rol !== undefined ? Number(id_rol) : uActual.id_rol;
+    if (nuevoRol !== uActual.id_rol) {
+      if (id.valor === req.usuario.id) {
+        return res.status(400).json({ error: 'No podés cambiar tu propio perfil.' });
+      }
+      if (!(await rolExiste(nuevoRol))) {
+        return res.status(400).json({ error: 'El perfil elegido no es válido.' });
+      }
     }
 
+    const nuevoNombre = nombre !== undefined ? String(nombre).trim() : uActual.nombre;
+    const nuevoEmail = email !== undefined ? String(email).trim().toLowerCase() : uActual.email;
+    const nuevoActivo = activo !== undefined ? Boolean(activo) : uActual.activo;
+    const passwordHash = password ? await bcrypt.hash(String(password), 10) : uActual.password_hash;
+
     const { rows } = await pool.query(
-      `UPDATE usuarios 
+      `UPDATE usuarios
        SET nombre = $1, email = $2, password_hash = $3, id_rol = $4, activo = $5
        WHERE id_usuario = $6
        RETURNING id_usuario, nombre, email, id_rol, activo`,
-      [nuevoNombre, nuevoEmail, passwordHash, nuevoRol, nuevoActivo, id]
+      [nuevoNombre, nuevoEmail, passwordHash, nuevoRol, nuevoActivo, id.valor]
     );
 
     res.json({
@@ -107,13 +148,19 @@ router.put('/:id', autenticar, permitirRoles('direccion'), async (req, res) => {
   }
 });
 
-// DELETE /usuarios/:id
+// DELETE /usuarios/:id - Baja lógica: el usuario queda desactivado y no puede iniciar sesión.
+// No se borra porque sus movimientos tienen que seguir mostrando quién los hizo (RNF-07).
 router.delete('/:id', autenticar, permitirRoles('direccion'), async (req, res) => {
-  const { id } = req.params;
+  const id = leerId(req.params.id, 'Usuario');
+  if (id.error) return res.status(400).json({ error: id.error });
+  if (id.valor === req.usuario.id) {
+    return res.status(400).json({ error: 'No podés desactivar tu propio usuario.' });
+  }
+
   try {
     const { rows } = await pool.query(
       `UPDATE usuarios SET activo = FALSE WHERE id_usuario = $1 RETURNING id_usuario, nombre, activo`,
-      [id]
+      [id.valor]
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado.' });

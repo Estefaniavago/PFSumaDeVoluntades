@@ -65,6 +65,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--negro); out
 .boton:disabled { opacity: .6; cursor: default; }
 .boton.secundario { background: #fff; color: var(--negro); border: 1.5px solid var(--negro); }
 .boton.secundario:hover { background: #F2F3F4; }
+.boton.peligro { background: #fff; color: var(--bordo); border: 1.5px solid var(--bordo); }
+.boton.peligro:hover { background: #FCF2F3; }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); padding-bottom: 6px; }
@@ -78,6 +80,7 @@ tr.falta.fila-producto:hover td { background: #F9E8EB; }
 tr.lotes td { border-top: 0; padding-top: 0; background: #F7F8F9; }
 .lote { padding: 8px 4px; border-top: 1px dashed var(--borde); }
 .lote:first-child { border-top: 0; }
+.lista-simple { padding-left: 18px; font-size: 13px; line-height: 1.6; }
 .subtitulo { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); margin: 18px 0 8px; }
 
 .bloqueado { text-align: center; padding: 30px 16px; color: var(--gris); }

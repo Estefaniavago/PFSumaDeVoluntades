@@ -49,6 +49,18 @@ router.post('/', autenticar, permitirRoles('encargado_deposito', 'referente_puer
   }
 
   try {
+    // Si el producto existía y se había dado de baja, se vuelve a activar con los datos nuevos
+    // (el nombre no se puede repetir y su historial de movimientos se conserva)
+    const { rows: dadoDeBaja } = await pool.query(
+      `UPDATE productos SET categoria = $2, unidad_medida = $3, minimo_deseable = $4, perecedero = $5, activo = TRUE
+       WHERE LOWER(nombre) = LOWER($1) AND activo = FALSE
+       RETURNING *`,
+      [String(nombre).trim(), categoria, String(unidad_medida).trim(), minimo, Boolean(perecedero)]
+    );
+    if (dadoDeBaja.length) {
+      return res.status(201).json({ mensaje: 'El producto estaba dado de baja y se volvió a activar.', producto: dadoDeBaja[0] });
+    }
+
     if (await nombreRepetido(String(nombre).trim())) {
       return res.status(400).json({ error: 'Ya existe un producto con ese nombre.' });
     }
