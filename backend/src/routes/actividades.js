@@ -65,6 +65,58 @@ router.post('/', autenticar, permitirRoles('direccion', 'coordinador_actividad')
   }
 });
 
+// PUT /actividades/:id - Editar una actividad planificada: tipo, fecha, porciones o menú (RF-16).
+// Solo se cambian los campos que llegan. Una actividad que ya salió o se canceló no se edita.
+router.put('/:id', autenticar, permitirRoles('direccion', 'coordinador_actividad'), async (req, res) => {
+  const id = leerId(req.params.id, 'Actividad');
+  if (id.error) return res.status(400).json({ error: id.error });
+  const { tipo_actividad, fecha_hora_salida, id_menu } = req.body;
+
+  const tiposValidos = ['desayuno', 'merienda', 'cena', 'salida_barrios', 'ropero', 'evento'];
+  if (tipo_actividad !== undefined && !tiposValidos.includes(tipo_actividad)) {
+    return res.status(400).json({ error: `Tipo de actividad inválido. Debe ser uno de: ${tiposValidos.join(', ')}.` });
+  }
+  if (fecha_hora_salida !== undefined && (!fecha_hora_salida || isNaN(new Date(fecha_hora_salida)))) {
+    return res.status(400).json({ error: 'Indicá una fecha y hora de salida válida.' });
+  }
+  const porciones = req.body.porciones_estimadas !== undefined
+    ? leerNumero(req.body.porciones_estimadas, 'Porciones estimadas', { entero: true })
+    : { valor: null };
+  // id_menu: null quita el menú; si no viene, queda el que estaba
+  const menu = id_menu ? leerId(id_menu, 'Menú (id_menu)') : { valor: null };
+  if (porciones.error || menu.error) {
+    return res.status(400).json({ error: porciones.error || menu.error });
+  }
+
+  try {
+    const { rows: actual } = await pool.query('SELECT estado, id_menu FROM actividades WHERE id_actividad = $1', [id.valor]);
+    if (actual.length === 0) return res.status(404).json({ error: 'Actividad no encontrada.' });
+    if (actual[0].estado !== 'planificada') {
+      return res.status(400).json({ error: 'Solo se pueden editar las actividades planificadas.' });
+    }
+    if (menu.valor) {
+      const { rows } = await pool.query('SELECT 1 FROM menus WHERE id_menu = $1', [menu.valor]);
+      if (rows.length === 0) return res.status(400).json({ error: 'El menú elegido no existe.' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE actividades
+       SET tipo_actividad = COALESCE($1, tipo_actividad),
+           fecha_hora_salida = COALESCE($2, fecha_hora_salida),
+           porciones_estimadas = COALESCE($3, porciones_estimadas),
+           id_menu = $4
+       WHERE id_actividad = $5
+       RETURNING *`,
+      [tipo_actividad || null, fecha_hora_salida || null, porciones.valor,
+       id_menu === undefined ? actual[0].id_menu : menu.valor, id.valor]
+    );
+    res.json({ mensaje: 'Actividad actualizada correctamente.', actividad: rows[0] });
+  } catch (err) {
+    console.error('Error al actualizar actividad:', err);
+    res.status(500).json({ error: 'No se pudo actualizar la actividad.' });
+  }
+});
+
 // PUT /actividades/:id/cancelar
 router.put('/:id/cancelar', autenticar, permitirRoles('direccion', 'coordinador_actividad'), async (req, res) => {
   const { id } = req.params;

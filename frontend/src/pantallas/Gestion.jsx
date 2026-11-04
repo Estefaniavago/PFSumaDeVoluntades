@@ -183,24 +183,135 @@ function FormProducto({ producto, alCerrar, alGuardar }) {
   );
 }
 
-/* ───────── Menús (consulta; la edición se suma con la pantalla de menú) ───────── */
+/* ───────── Menús ───────── */
+
+// En pantalla el rendimiento se carga "cada 100 porciones", como lo piensa la cocina;
+// en la base se guarda por porción.
+const POR = 100;
+const TEMPORADAS = { invierno: 'Invierno', verano: 'Verano' };
 
 function Menus() {
-  const { lista, error } = useLista('/menus');
+  const { usuario } = useSesion();
+  const edita = puede.editarMenus(usuario.rol);
+  const { lista, error, recargar } = useLista('/menus');
+  const [editando, setEditando] = useState(null);
+  const [aviso, setAviso] = useState('');
+
   if (error) return <div className="mensaje-error">{error}</div>;
   if (!lista) return <p className="cargando">Cargando menús…</p>;
 
-  return lista.map(m => (
-    <div className="tarjeta" key={m.id_menu}>
-      <h3>{m.nombre_menu}</h3>
-      <p className="mini" style={{ marginBottom: 6 }}>{m.temporada ? `Temporada: ${m.temporada} · ` : ''}Insumos cada 100 porciones:</p>
-      <ul className="lista-simple">
-        {m.insumos.map(i => (
-          <li key={i.id_menu_insumo}>{i.nombre_producto}: {num(i.cantidad_por_porcion * 100)} {i.unidad_medida}</li>
-        ))}
-      </ul>
-    </div>
-  ));
+  const terminar = texto => { setEditando(null); setAviso(texto); recargar(); };
+  if (editando) {
+    return <FormMenu menu={editando === 'nuevo' ? null : editando} alCerrar={() => setEditando(null)} alGuardar={terminar} />;
+  }
+
+  return <>
+    <p className="mini" style={{ marginBottom: 12 }}>
+      Con estas cantidades se calcula lo que hace falta para cada actividad.
+      {!edita && ' Las cambia la dirección.'}
+    </p>
+    <Aviso texto={aviso} alCerrar={() => setAviso('')} />
+    {edita && <button className="boton secundario" style={{ marginTop: 0, marginBottom: 12 }} onClick={() => { setAviso(''); setEditando('nuevo'); }}>+ Nuevo menú</button>}
+    {lista.map(m => (
+      <div className="tarjeta" key={m.id_menu}>
+        <div className="fila">
+          <h3>{m.nombre_menu}</h3>
+          {edita && <button className="enlace" onClick={() => { setAviso(''); setEditando(m); }}>Editar</button>}
+        </div>
+        <p className="mini" style={{ marginBottom: 6 }}>{TEMPORADAS[m.temporada]} · insumos cada {POR} porciones:</p>
+        <ul className="lista-simple">
+          {m.insumos.map(i => (
+            <li key={i.id_menu_insumo}>{i.nombre_producto}: {num(i.cantidad_por_porcion * POR)} {i.unidad_medida}</li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </>;
+}
+
+function FormMenu({ menu, alCerrar, alGuardar }) {
+  const { lista: productos } = useLista('/productos');
+  const [nombre, setNombre] = useState(menu ? menu.nombre_menu : '');
+  const [temporada, setTemporada] = useState(menu ? menu.temporada : 'invierno');
+  const [insumos, setInsumos] = useState(menu
+    ? menu.insumos.map(i => ({ id_producto: String(i.id_producto), cantidad: String(Math.round(i.cantidad_por_porcion * POR * 100) / 100) }))
+    : [{ id_producto: '', cantidad: '' }]);
+  const { error, setError, enviando, enviar } = useEnvio();
+
+  if (!productos) return <p className="cargando">Cargando productos…</p>;
+  const elegibles = productos.filter(p => p.categoria !== 'dinero');
+  const unidad = id => (elegibles.find(p => String(p.id_producto) === id) || {}).unidad_medida || '';
+  const cambiarInsumo = (i, campo, valor) => setInsumos(insumos.map((x, j) => j === i ? { ...x, [campo]: valor } : x));
+
+  async function guardar(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return setError('Escribí el nombre del menú.');
+    if (!insumos.length) return setError('El menú tiene que tener al menos un insumo.');
+    for (const [i, x] of insumos.entries()) {
+      if (!x.id_producto) return setError(`Elegí el producto del insumo ${i + 1}.`);
+      if (!(Number(x.cantidad) > 0)) return setError(`La cantidad del insumo ${i + 1} tiene que ser mayor que cero.`);
+    }
+    const ids = insumos.map(x => x.id_producto);
+    if (new Set(ids).size !== ids.length) return setError('Hay un producto cargado dos veces.');
+
+    const cuerpo = {
+      nombre_menu: nombre.trim(),
+      temporada,
+      insumos: insumos.map(x => ({ id_producto: Number(x.id_producto), cantidad_por_porcion: Number(x.cantidad) / POR })),
+    };
+    const ok = await enviar(() => menu
+      ? api(`/menus/${menu.id_menu}`, { metodo: 'PUT', datos: cuerpo })
+      : api('/menus', { metodo: 'POST', datos: cuerpo }));
+    if (ok) alGuardar(menu
+      ? `Se guardó ${cuerpo.nombre_menu}. Las actividades que lo usan ya calculan con las cantidades nuevas.`
+      : `${cuerpo.nombre_menu} se agregó a los menús.`);
+  }
+
+  async function eliminar() {
+    if (!window.confirm(`¿Eliminar el menú ${menu.nombre_menu}? No se puede deshacer.`)) return;
+    const ok = await enviar(() => api(`/menus/${menu.id_menu}`, { metodo: 'DELETE' }));
+    if (ok) alGuardar(`${menu.nombre_menu} se eliminó.`);
+  }
+
+  return (
+    <form className="tarjeta" onSubmit={guardar} noValidate>
+      <h3>{menu ? `Editar ${menu.nombre_menu}` : 'Nuevo menú'}</h3>
+      <div className="dos">
+        <div>
+          <label htmlFor="m-nombre">Nombre</label>
+          <input id="m-nombre" value={nombre} onChange={e => setNombre(e.target.value)} maxLength={100} />
+        </div>
+        <div>
+          <label htmlFor="m-temporada">Temporada</label>
+          <select id="m-temporada" value={temporada} onChange={e => setTemporada(e.target.value)}>
+            {Object.entries(TEMPORADAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <p className="mini" style={{ margin: '14px 0 4px' }}>Cuánto de cada insumo se usa cada {POR} porciones:</p>
+      {insumos.map((x, i) => (
+        <div className="insumo-menu" key={i}>
+          <select aria-label={`Producto del insumo ${i + 1}`} value={x.id_producto} onChange={e => cambiarInsumo(i, 'id_producto', e.target.value)}>
+            <option value="">Elegí un producto</option>
+            {elegibles.map(p => <option key={p.id_producto} value={p.id_producto}>{p.nombre}</option>)}
+          </select>
+          <input aria-label={`Cantidad del insumo ${i + 1}`} type="number" min="0" step="any" inputMode="decimal"
+                 value={x.cantidad} onChange={e => cambiarInsumo(i, 'cantidad', e.target.value)} />
+          <span className="mini">{unidad(x.id_producto)}</span>
+          <button type="button" className="enlace" onClick={() => setInsumos(insumos.filter((_, j) => j !== i))}>Quitar</button>
+        </div>
+      ))}
+      <button type="button" className="enlace" style={{ marginTop: 6 }} onClick={() => setInsumos([...insumos, { id_producto: '', cantidad: '' }])}>
+        + Agregar insumo
+      </button>
+
+      {error && <div className="mensaje-error">{error}</div>}
+      <button className="boton" disabled={enviando}>{enviando ? 'Guardando…' : 'Guardar'}</button>
+      <button type="button" className="boton secundario" onClick={alCerrar}>Cancelar</button>
+      {menu && <button type="button" className="boton peligro" onClick={eliminar} disabled={enviando}>Eliminar menú</button>}
+    </form>
+  );
 }
 
 /* ───────── Destinos ───────── */

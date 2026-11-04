@@ -47,7 +47,7 @@ function Lista() {
           + Nueva actividad
         </button>
       )}
-      {creando && <NuevaActividad alCerrar={() => setCreando(false)} alCrear={() => { setCreando(false); cargar(); }} />}
+      {creando && <FormActividad alCerrar={() => setCreando(false)} alGuardar={() => { setCreando(false); cargar(); }} />}
 
       <h3 className="subtitulo">Próximas</h3>
       {!proximas.length && <p className="mini">No hay actividades planificadas.</p>}
@@ -77,9 +77,20 @@ function TarjetaActividad({ a }) {
   );
 }
 
-function NuevaActividad({ alCerrar, alCrear }) {
+// "2026-11-06T20:00", el formato que usa el campo datetime-local, en hora local
+const aCampoFecha = f => {
+  const d = new Date(f);
+  const dos = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}`;
+};
+
+// Alta de una actividad o edición de una existente (si llega "actividad")
+function FormActividad({ actividad, alCerrar, alGuardar }) {
   const [menus, setMenus] = useState([]);
-  const [datos, setDatos] = useState({ tipo_actividad: 'cena', fecha_hora_salida: '', porciones_estimadas: '', id_menu: '' });
+  const [datos, setDatos] = useState(actividad
+    ? { tipo_actividad: actividad.tipo_actividad, fecha_hora_salida: aCampoFecha(actividad.fecha_hora_salida),
+        porciones_estimadas: String(actividad.porciones_estimadas), id_menu: actividad.id_menu ? String(actividad.id_menu) : '' }
+    : { tipo_actividad: 'cena', fecha_hora_salida: '', porciones_estimadas: '', id_menu: '' });
   const [error, setError] = useState('');
   const [enviando, setEnviando] = useState(false);
   const cambiar = campo => e => setDatos({ ...datos, [campo]: e.target.value });
@@ -96,8 +107,8 @@ function NuevaActividad({ alCerrar, alCrear }) {
 
     setEnviando(true);
     try {
-      await api('/actividades', {
-        metodo: 'POST',
+      await api(actividad ? `/actividades/${actividad.id_actividad}` : '/actividades', {
+        metodo: actividad ? 'PUT' : 'POST',
         datos: {
           tipo_actividad: datos.tipo_actividad,
           // datetime-local da la hora local; se manda con zona horaria para que no se corra
@@ -106,7 +117,7 @@ function NuevaActividad({ alCerrar, alCrear }) {
           id_menu: datos.id_menu || null,
         },
       });
-      alCrear();
+      alGuardar();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -116,7 +127,7 @@ function NuevaActividad({ alCerrar, alCrear }) {
 
   return (
     <form className="tarjeta" onSubmit={guardar} noValidate>
-      <h3>Nueva actividad</h3>
+      <h3>{actividad ? 'Editar actividad' : 'Nueva actividad'}</h3>
       <label htmlFor="tipo">Tipo</label>
       <select id="tipo" value={datos.tipo_actividad} onChange={cambiar('tipo_actividad')}>
         {Object.entries(TIPOS_ACTIVIDAD).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
@@ -131,7 +142,7 @@ function NuevaActividad({ alCerrar, alCrear }) {
         {menus.map(m => <option key={m.id_menu} value={m.id_menu}>{m.nombre_menu}</option>)}
       </select>
       {error && <div className="mensaje-error">{error}</div>}
-      <button className="boton" disabled={enviando}>{enviando ? 'Guardando…' : 'Guardar actividad'}</button>
+      <button className="boton" disabled={enviando}>{enviando ? 'Guardando…' : actividad ? 'Guardar cambios' : 'Guardar actividad'}</button>
       <button type="button" className="boton secundario" onClick={alCerrar}>Cancelar</button>
     </form>
   );
@@ -150,6 +161,8 @@ function Detalle() {
   const [errorAccion, setErrorAccion] = useState('');
   const [salida, setSalida] = useState(null);
   const [enviando, setEnviando] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [vuelta, setVuelta] = useState(0);
 
   useEffect(() => {
     Promise.all([api('/actividades'), api('/menus')])
@@ -161,7 +174,7 @@ function Detalle() {
         if (a.id_menu && a.estado === 'planificada') setPresupuesto(await api(`/actividades/${id}/presupuesto`));
       })
       .catch(err => setError(err.message));
-  }, [id]);
+  }, [id, vuelta]);
 
   if (error) return <><Volver /><div className="mensaje-error">{error}</div></>;
   if (!actividad) return <p className="cargando">Cargando la actividad…</p>;
@@ -223,6 +236,15 @@ function Detalle() {
   }
 
   const planificada = actividad.estado === 'planificada';
+
+  if (editando) {
+    return (
+      <div className="angosta">
+        <FormActividad actividad={actividad} alCerrar={() => setEditando(false)}
+                       alGuardar={() => { setEditando(false); setPresupuesto(null); setVuelta(v => v + 1); }} />
+      </div>
+    );
+  }
   const faltantes = presupuesto ? presupuesto.insumos.filter(i => i.faltante > 0).length : 0;
 
   return (
@@ -280,9 +302,10 @@ function Detalle() {
           {enviando ? 'Registrando…' : 'Registrar salida de la mercadería'}
         </button>
       )}
-      {planificada && puede.organizarActividades(usuario.rol) && (
-        <button className="boton secundario" onClick={cancelar}>Cancelar actividad</button>
-      )}
+      {planificada && puede.organizarActividades(usuario.rol) && <>
+        <button className="boton secundario" onClick={() => setEditando(true)}>Editar porciones, fecha o menú</button>
+        <button className="boton peligro" onClick={cancelar}>Cancelar actividad</button>
+      </>}
       {planificada && !puede.registrarSalida(usuario.rol) && presupuesto && (
         <p className="mini" style={{ marginTop: 12 }}>
           La salida de la mercadería la registra el encargado de depósito cuando se retira.

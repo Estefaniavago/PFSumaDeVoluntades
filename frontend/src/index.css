@@ -80,6 +80,7 @@ tr.falta.fila-producto:hover td { background: #F9E8EB; }
 tr.lotes td { border-top: 0; padding-top: 0; background: #F7F8F9; }
 .lote { padding: 8px 4px; border-top: 1px dashed var(--borde); }
 .lote:first-child { border-top: 0; }
+.insumo-menu { display: grid; grid-template-columns: 1fr 80px 54px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
 .lista-simple { padding-left: 18px; font-size: 13px; line-height: 1.6; }
 .subtitulo { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); margin: 18px 0 8px; }
 
