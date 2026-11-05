@@ -30,8 +30,8 @@ describe('autenticar: exige una sesión válida', () => {
   });
 
   test('con un token falso o vencido responde 401', () => {
-    const vencido = jwt.sign({ id_usuario: 1, rol: 'direccion' }, process.env.JWT_SECRET, { expiresIn: -10 });
-    const falso = jwt.sign({ id_usuario: 1, rol: 'direccion' }, 'otra_clave');
+    const vencido = jwt.sign({ id: 1, rol: 'direccion' }, process.env.JWT_SECRET, { expiresIn: -10 });
+    const falso = jwt.sign({ id: 1, rol: 'direccion' }, 'otra_clave');
     for (const token of [vencido, falso, 'cualquier-cosa']) {
       const res = respuestaSimulada();
       const next = jest.fn();
@@ -43,12 +43,12 @@ describe('autenticar: exige una sesión válida', () => {
   });
 
   test('con un token válido deja pasar y guarda el usuario en el pedido', () => {
-    const token = jwt.sign({ id_usuario: 3, rol: 'encargado_deposito' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id: 3, rol: 'encargado_deposito' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     const req = pedidoConToken(token);
     const next = jest.fn();
     autenticar(req, respuestaSimulada(), next);
     expect(next).toHaveBeenCalledTimes(1);
-    expect(req.usuario).toMatchObject({ id_usuario: 3, rol: 'encargado_deposito' });
+    expect(req.usuario).toMatchObject({ id: 3, rol: 'encargado_deposito' });
   });
 });
 
