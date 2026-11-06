@@ -231,3 +231,6 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
 });
 
 module.exports = router;
+
+// Se exporta también para poder probar el cálculo de forma aislada (tests/presupuesto.test.js).
+module.exports.calcularPresupuesto = calcularPresupuesto;
