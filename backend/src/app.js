@@ -17,6 +17,7 @@ const menusRouter = require('./routes/menus');
 const actividadesRouter = require('./routes/actividades');
 const presupuestosRouter = require('./routes/presupuestos');
 const usuariosRouter = require('./routes/usuarios');
+const remitosRouter = require('./routes/remitos');
 
 const app = express();
 app.use(cors());
@@ -38,5 +39,6 @@ app.use('/menus', menusRouter);
 app.use('/actividades', actividadesRouter);
 app.use(presupuestosRouter);
 app.use('/usuarios', usuariosRouter);
+app.use('/remitos', remitosRouter);
 
 module.exports = app; 
