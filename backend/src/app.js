@@ -39,4 +39,26 @@ app.use('/actividades', actividadesRouter);
 app.use(presupuestosRouter);
 app.use('/usuarios', usuariosRouter);
 
-module.exports = app; 
+
+// captura de errores y rutas inexistentes
+
+
+// rutas inexistentes (404)
+app.use((req, res, next) => {
+  res.status(404).json({ error: 'La ruta solicitada no existe.' });
+});
+
+// errores global
+
+app.use((err, req, res, next) => {
+
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'El formato del JSON enviado es inválido o está mal formado.' });
+  }
+
+
+  console.error('Error interno no controlado:', err);
+  res.status(500).json({ error: 'Ocurrió un error interno en el servidor.' });
+});
+
+module.exports = app;
