@@ -19,19 +19,28 @@ const FILTROS = [
   { id: 'vence', nombre: 'Por vencer' },
 ];
 
-// Estado de un producto según su stock, su mínimo y el lote que vence primero
+// Estado de un producto según su stock, su mínimo y el lote que vence primero.
+// Un producto puede estar a la vez por debajo del mínimo y por vencer: se marcan las dos cosas
+// y aparece en los dos filtros.
 function estadoProducto(p) {
   const stock = Number(p.stock_total);
   const minimo = Number(p.minimo_deseable);
   const vence = p.lotes.find(l => l.fecha_vencimiento && l.cantidad_actual > 0);
   const dias = vence ? diasHasta(vence.fecha_vencimiento) : null;
+  const bajoMinimo = minimo > 0 && stock < minimo;
+  const porVencer = dias !== null && dias <= DIAS_AVISO;
+  const etiquetas = [];
 
-  if (dias !== null && dias < 0) return { clave: 'vencido', texto: `Vencido el ${fecha(vence.fecha_vencimiento)}`, clase: 'falta', fila: true };
-  if (minimo > 0 && stock < minimo) return { clave: 'minimo', texto: 'Por debajo del mínimo', clase: 'falta', fila: true };
-  if (dias !== null && dias <= DIAS_AVISO) return { clave: 'vence', texto: dias === 0 ? 'Vence hoy' : `Vence el ${fecha(vence.fecha_vencimiento)}`, clase: 'baja' };
-  if (stock <= 0) return { clave: 'sin-stock', texto: 'Sin stock', clase: 'baja' };
-  if (minimo === 0) return { clave: 'sin-minimo', texto: 'Mínimo a definir', clase: 'baja' };
-  return { clave: 'ok', texto: 'En orden', clase: 'ok' };
+  if (dias !== null && dias < 0) etiquetas.push({ texto: `Vencido el ${fecha(vence.fecha_vencimiento)}`, clase: 'falta' });
+  else if (porVencer) etiquetas.push({ texto: dias === 0 ? 'Vence hoy' : `Vence el ${fecha(vence.fecha_vencimiento)}`, clase: 'baja' });
+  if (bajoMinimo) etiquetas.push({ texto: 'Por debajo del mínimo', clase: 'falta' });
+
+  if (!etiquetas.length) {
+    if (stock <= 0) etiquetas.push({ texto: 'Sin stock', clase: 'baja' });
+    else if (minimo === 0) etiquetas.push({ texto: 'Mínimo a definir', clase: 'baja' });
+    else etiquetas.push({ texto: 'En orden', clase: 'ok' });
+  }
+  return { bajoMinimo, porVencer, etiquetas, fila: bajoMinimo || (dias !== null && dias < 0) };
 }
 
 export default function Deposito() {
@@ -63,8 +72,8 @@ export default function Deposito() {
   if (!productos) return <><h2>Depósito central</h2><p className="cargando">Cargando el stock…</p></>;
 
   const cumple = (p, f) => f === 'todo'
-    || (f === 'minimo' && p.estado.clave === 'minimo')
-    || (f === 'vence' && ['vence', 'vencido'].includes(p.estado.clave));
+    || (f === 'minimo' && p.estado.bajoMinimo)
+    || (f === 'vence' && p.estado.porVencer);
   const texto = busqueda.trim().toLowerCase();
   const visibles = productos.filter(p => cumple(p, filtro) && p.nombre.toLowerCase().includes(texto));
 
@@ -106,7 +115,7 @@ export default function Deposito() {
                     aria-expanded={abierto === p.id_producto}>
                   <td>
                     <strong>{p.nombre}</strong><br />
-                    <span className={'etiqueta ' + p.estado.clase}>{p.estado.texto}</span>
+                    {p.estado.etiquetas.map(e => <span key={e.texto} className={'etiqueta ' + e.clase} style={{ marginRight: 4 }}>{e.texto}</span>)}
                   </td>
                   <td className="num">
                     {num(p.stock_total)} {p.unidad_medida}<br />
