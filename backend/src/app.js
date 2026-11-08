@@ -18,10 +18,14 @@ const actividadesRouter = require('./routes/actividades');
 const presupuestosRouter = require('./routes/presupuestos');
 const usuariosRouter = require('./routes/usuarios');
 const remitosRouter = require('./routes/remitos');
+const { verificarUsuarioVigente } = require('./middleware/auth');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Si el usuario fue desactivado o cambió de perfil, la sesión deja de valer en el momento (RNF-05)
+app.use(verificarUsuarioVigente);
 
 // Montaje de rutas agrupadas por módulo
 app.use(authRoutes);
