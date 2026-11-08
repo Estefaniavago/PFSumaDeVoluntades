@@ -3,7 +3,6 @@ const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
 const { leerNumero, leerId } = require('../validaciones');
-const { leerNumero, leerId } = require('../validaciones');
 const { ErrorNegocio } = require('../lotes');
 
 // GET /actividades
