@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useSesion } from '../sesion';
-import { NOMBRES_PERFIL, MOTIVOS, puedeVer } from '../permisos';
+import { NOMBRES_PERFIL, MOTIVOS, puede, puedeVer } from '../permisos';
+import Avisos from './Avisos';
 
 const SECCIONES = [
   { ruta: '/', icono: '⌂', texto: 'Inicio' },
@@ -24,6 +25,7 @@ export function Estructura() {
             <div className="nombre-app">Gestión de<br />donaciones</div>
           </div>
           <div className="acciones-header">
+            {puede.verAlertas(usuario.rol) && <Avisos />}
             <div className="usuario">
               <b>{usuario.nombre}</b>
               {NOMBRES_PERFIL[usuario.rol]}
