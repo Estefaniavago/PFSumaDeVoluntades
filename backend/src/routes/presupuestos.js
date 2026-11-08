@@ -155,7 +155,7 @@ router.post('/actividades/:id/salida', autenticar, permitirRoles('encargado_depo
   }
 });
 
-// POST /actividades/:id/reservar
+// T23: POST /actividades/:id/reservar - Reserva los insumos necesarios sin descontarlos físicamente del stock.
 router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_actividad', 'direccion'), async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
@@ -163,7 +163,7 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
   try {
     await client.query('BEGIN');
 
-    //obtener actividad y menú
+    // Obtener actividad y menú
     const { rows: actRows } = await client.query('SELECT porciones_estimadas, id_menu FROM actividades WHERE id_actividad = $1', [id]);
     if (actRows.length === 0) throw new ErrorNegocio('Actividad no encontrada.');
     const actividad = actRows[0];
@@ -176,7 +176,7 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
     for (const insumo of insumosMenu) {
       let porCubrir = insumo.cantidad_por_porcion * actividad.porciones_estimadas;
 
-      //buscar lotes disponibles ordenado por fecha de vencimiento
+      // Buscar lotes disponibles ordenados por fecha de vencimiento
       const { rows: lotes } = await client.query(
         `SELECT d.id_donacion, COALESCE(SUM(m.cantidad), 0) AS disponible
          FROM donaciones d
@@ -191,26 +191,42 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
         const disp = parseFloat(lote.disponible);
         const aReservar = Math.min(disp, porCubrir);
 
-        //registrar reserva
-        await client.query(
-          `INSERT INTO movimientos (id_donacion, id_usuario, id_actividad, tipo_movimiento, cantidad, motivo)
-           VALUES ($1, $2, $3, 'salida', $4, $5)`,
-          [lote.id_donacion, req.usuario.id, id, -aReservar, `Reserva para actividad ID ${id}`]
-        );
-
-        //actualizar estado del lote a reservada
-        await client.query("UPDATE donaciones SET estado = 'reservada' WHERE id_donacion = $1", [lote.id_donacion]);
+        // T23: Si la reserva agota el lote, lo pasamos a estado 'reservada'.
+        // Caso contrario, solo le asignamos la ID de la actividad para trazabilidad.
+        if (aReservar === disp) {
+          await client.query(
+            "UPDATE donaciones SET estado = 'reservada', id_actividad_reserva = $1 WHERE id_donacion = $2",
+            [id, lote.id_donacion]
+          );
+        } else {
+          await client.query(
+            "UPDATE donaciones SET id_actividad_reserva = $1 WHERE id_donacion = $2",
+            [id, lote.id_donacion]
+          );
+        }
 
         porCubrir -= aReservar;
       }
 
-      //si queda faltante, registrar pedido de reposición
+      // T23: Si queda faltante, registrar o actualizar pedido de reposición para evitar duplicados.
       if (porCubrir > 0) {
-        await client.query(
-          `INSERT INTO pedidos_reposicion (id_actividad, id_producto, id_usuario, cantidad_faltante, estado)
-           VALUES ($1, $2, $3, $4, 'pendiente')`,
-          [id, insumo.id_producto, req.usuario.id, porCubrir]
+        const { rows: existente } = await client.query(
+          "SELECT id_pedido FROM pedidos_reposicion WHERE id_actividad = $1 AND id_producto = $2 AND estado = 'pendiente'",
+          [id, insumo.id_producto]
         );
+        
+        if (existente.length > 0) {
+          await client.query(
+            "UPDATE pedidos_reposicion SET cantidad_faltante = $1, fecha_hora = NOW() WHERE id_pedido = $2",
+            [porCubrir, existente[0].id_pedido]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO pedidos_reposicion (id_actividad, id_producto, id_usuario, cantidad_faltante, estado)
+             VALUES ($1, $2, $3, $4, 'pendiente')`,
+            [id, insumo.id_producto, req.usuario.id, porCubrir]
+          );
+        }
         faltantesGenerados.push({ id_producto: insumo.id_producto, faltante: porCubrir });
       }
     }
@@ -227,6 +243,30 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
     res.status(500).json({ error: 'No se pudieron reservar los insumos.' });
   } finally {
     client.release();
+  }
+});
+
+// T26: GET /reportes/consumos - Consumo por actividad y diferencias
+router.get('/reportes/consumos', autenticar, permitirRoles('direccion', 'coordinador_actividad'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        a.id_actividad, 
+        a.tipo_actividad, 
+        a.fecha_hora_salida, 
+        a.porciones_estimadas, 
+        a.porciones_reales,
+        (a.porciones_reales - a.porciones_estimadas) AS diferencia,
+        m.nombre AS menu_asociado
+      FROM actividades a
+      LEFT JOIN menus m ON a.id_menu = m.id_menu
+      WHERE a.estado = 'realizada'
+      ORDER BY a.fecha_hora_salida DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error al generar reporte de consumos:', err);
+    res.status(500).json({ error: 'No se pudo generar el reporte de consumos.' });
   }
 });
 

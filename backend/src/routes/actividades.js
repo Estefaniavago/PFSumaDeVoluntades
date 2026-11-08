@@ -117,21 +117,72 @@ router.put('/:id', autenticar, permitirRoles('direccion', 'coordinador_actividad
   }
 });
 
-// PUT /actividades/:id/cancelar
+// PUT /:id/cancelar (T23: Liberación al cancelar)
 router.put('/:id/cancelar', autenticar, permitirRoles('direccion', 'coordinador_actividad'), async (req, res) => {
   const { id } = req.params;
+  const client = await pool.connect();
+  
   try {
-    const { rows } = await pool.query(
+    await client.query('BEGIN');
+    
+    // 1. Cancelar la actividad
+    const { rows } = await client.query(
       `UPDATE actividades SET estado = 'cancelada' WHERE id_actividad = $1 RETURNING *`,
       [id]
     );
+    if (rows.length === 0) throw new Error('Actividad no encontrada.');
+    
+    // 2. Liberar lotes reservados devolviéndolos a estado disponible
+    await client.query(
+      `UPDATE donaciones SET estado = 'disponible', id_actividad_reserva = NULL 
+       WHERE id_actividad_reserva = $1`,
+      [id]
+    );
+    
+    // 3. Eliminar los pedidos de reposición pendientes asociados
+    await client.query(
+      `DELETE FROM pedidos_reposicion WHERE id_actividad = $1 AND estado = 'pendiente'`,
+      [id]
+    );
+    
+    await client.query('COMMIT');
+    res.json({ mensaje: 'Actividad cancelada exitosamente y stock liberado.', actividad: rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.message === 'Actividad no encontrada.') {
+      return res.status(404).json({ error: err.message });
+    }
+    console.error('Error al cancelar actividad:', err);
+    res.status(500).json({ error: 'No se pudo cancelar la actividad.' });
+  } finally {
+    client.release();
+  }
+});
+
+// T25: PUT /:id/consumo
+router.put('/:id/consumo', autenticar, permitirRoles('coordinador_actividad', 'direccion'), async (req, res) => {
+  const { id } = req.params;
+  const { porciones_reales } = req.body;
+
+  if (porciones_reales === undefined || isNaN(porciones_reales) || porciones_reales < 0) {
+    return res.status(400).json({ error: 'Debes indicar una cantidad válida de porciones entregadas.' });
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE actividades SET porciones_reales = $1, estado = 'realizada' 
+       WHERE id_actividad = $2 RETURNING *`,
+      [porciones_reales, id]
+    );
+
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Actividad no encontrada.' });
     }
-    res.json({ mensaje: 'Actividad cancelada exitosamente.', actividad: rows[0] });
+
+    res.json({ mensaje: 'Consumo real registrado correctamente.', actividad: rows[0] });
   } catch (err) {
-    console.error('Error al cancelar actividad:', err);
-    res.status(500).json({ error: 'No se pudo cancelar la actividad.' });
+    console.error('Error al registrar consumo:', err);
+    res.status(500).json({ error: 'No se pudo registrar el consumo real.' });
   }
 });
 
