@@ -155,7 +155,7 @@ router.post('/actividades/:id/salida', autenticar, permitirRoles('encargado_depo
   }
 });
 
-// T23: POST /actividades/:id/reservar - Reserva los insumos necesarios sin descontarlos físicamente del stock.
+//POST /actividades/:id/reservar
 router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_actividad', 'direccion'), async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
@@ -176,7 +176,7 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
     for (const insumo of insumosMenu) {
       let porCubrir = insumo.cantidad_por_porcion * actividad.porciones_estimadas;
 
-      // Buscar lotes disponibles ordenados por fecha de vencimiento
+      //buscar lotes disponibles ordenados por fecha de vencimiento
       const { rows: lotes } = await client.query(
         `SELECT d.id_donacion, COALESCE(SUM(m.cantidad), 0) AS disponible
          FROM donaciones d
@@ -191,8 +191,8 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
         const disp = parseFloat(lote.disponible);
         const aReservar = Math.min(disp, porCubrir);
 
-        // T23: Si la reserva agota el lote, lo pasamos a estado 'reservada'.
-        // Caso contrario, solo le asignamos la ID de la actividad para trazabilidad.
+        //si la reserva agota el lote, lo pasamos a estado 'reservada'.
+        // caso contrario, solo le asignamos la ID de la actividad para trazabilidad.
         if (aReservar === disp) {
           await client.query(
             "UPDATE donaciones SET estado = 'reservada', id_actividad_reserva = $1 WHERE id_donacion = $2",
@@ -246,7 +246,7 @@ router.post('/actividades/:id/reservar', autenticar, permitirRoles('coordinador_
   }
 });
 
-// T26: GET /reportes/consumos - Consumo por actividad y diferencias
+// GET /reportes/consumos
 router.get('/reportes/consumos', autenticar, permitirRoles('direccion', 'coordinador_actividad'), async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -257,7 +257,7 @@ router.get('/reportes/consumos', autenticar, permitirRoles('direccion', 'coordin
         a.porciones_estimadas, 
         a.porciones_reales,
         (a.porciones_reales - a.porciones_estimadas) AS diferencia,
-        m.nombre AS menu_asociado
+        m.nombre_menu AS menu_asociado
       FROM actividades a
       LEFT JOIN menus m ON a.id_menu = m.id_menu
       WHERE a.estado = 'realizada'

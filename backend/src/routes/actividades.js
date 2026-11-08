@@ -3,6 +3,8 @@ const router = express.Router();
 const pool = require('../db');
 const { autenticar, permitirRoles } = require('../middleware/auth');
 const { leerNumero, leerId } = require('../validaciones');
+const { leerNumero, leerId } = require('../validaciones');
+const { ErrorNegocio } = require('../lotes');
 
 // GET /actividades
 router.get('/', autenticar, async (req, res) => {
@@ -117,41 +119,57 @@ router.put('/:id', autenticar, permitirRoles('direccion', 'coordinador_actividad
   }
 });
 
-// PUT /:id/cancelar (T23: Liberación al cancelar)
+// PUT /:id/cancelar (T23: Liberación al cancelar y validación de estado)
 router.put('/:id/cancelar', autenticar, permitirRoles('direccion', 'coordinador_actividad'), async (req, res) => {
-  const { id } = req.params;
+  const id = leerId(req.params.id, 'Actividad');
+  if (id.error) return res.status(400).json({ error: id.error });
+
   const client = await pool.connect();
   
   try {
     await client.query('BEGIN');
     
-    // 1. Cancelar la actividad
+    // 1. Verificar el estado actual antes de cancelar
+    const { rows: actRows } = await client.query(
+      'SELECT estado FROM actividades WHERE id_actividad = $1 FOR UPDATE',
+      [id.valor]
+    );
+    if (actRows.length === 0) throw new ErrorNegocio('Actividad no encontrada.', 404);
+    if (actRows[0].estado === 'cancelada') {
+      throw new ErrorNegocio('La actividad ya se encuentra cancelada.', 400);
+    }
+    if (actRows[0].estado === 'realizada') {
+      throw new ErrorNegocio('No se puede cancelar una actividad que ya fue realizada.', 400);
+    }
+    
+    // 2. Cancelar la actividad
     const { rows } = await client.query(
       `UPDATE actividades SET estado = 'cancelada' WHERE id_actividad = $1 RETURNING *`,
-      [id]
+      [id.valor]
     );
-    if (rows.length === 0) throw new Error('Actividad no encontrada.');
     
-    // 2. Liberar lotes reservados devolviéndolos a estado disponible
+    // 3. Liberar lotes devolviéndolos a estado disponible y desvinculando la actividad
     await client.query(
-      `UPDATE donaciones SET estado = 'disponible', id_actividad_reserva = NULL 
-       WHERE id_actividad_reserva = $1`,
-      [id]
+      `UPDATE donaciones SET estado = 'disponible' 
+       WHERE id_actividad_reserva = $1 AND estado = 'reservada'`,
+      [id.valor]
+    );
+    await client.query(
+      `UPDATE donaciones SET id_actividad_reserva = NULL WHERE id_actividad_reserva = $1`,
+      [id.valor]
     );
     
-    // 3. Eliminar los pedidos de reposición pendientes asociados
+    // 4. Eliminar los pedidos de reposición pendientes asociados
     await client.query(
       `DELETE FROM pedidos_reposicion WHERE id_actividad = $1 AND estado = 'pendiente'`,
-      [id]
+      [id.valor]
     );
     
     await client.query('COMMIT');
     res.json({ mensaje: 'Actividad cancelada exitosamente y stock liberado.', actividad: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (err.message === 'Actividad no encontrada.') {
-      return res.status(404).json({ error: err.message });
-    }
+    if (err instanceof ErrorNegocio) return res.status(err.status).json({ error: err.message });
     console.error('Error al cancelar actividad:', err);
     res.status(500).json({ error: 'No se pudo cancelar la actividad.' });
   } finally {
@@ -159,30 +177,48 @@ router.put('/:id/cancelar', autenticar, permitirRoles('direccion', 'coordinador_
   }
 });
 
-// T25: PUT /:id/consumo
-router.put('/:id/consumo', autenticar, permitirRoles('coordinador_actividad', 'direccion'), async (req, res) => {
-  const { id } = req.params;
-  const { porciones_reales } = req.body;
 
-  if (porciones_reales === undefined || isNaN(porciones_reales) || porciones_reales < 0) {
-    return res.status(400).json({ error: 'Debes indicar una cantidad válida de porciones entregadas.' });
+//PUT /:id/consumo
+router.put('/:id/consumo', autenticar, permitirRoles('coordinador_actividad', 'direccion'), async (req, res) => {
+  const id = leerId(req.params.id, 'Actividad');
+  if (id.error) return res.status(400).json({ error: id.error });
+
+  //utilizar la validación estandarizada para rechazar vacíos, strings y decimales
+  const porciones = leerNumero(req.body.porciones_reales, 'Porciones entregadas', { entero: true });
+  if (porciones.error) {
+    return res.status(400).json({ error: porciones.error });
   }
 
-  try {
-    const { rows } = await pool.query(
-      `UPDATE actividades SET porciones_reales = $1, estado = 'realizada' 
-       WHERE id_actividad = $2 RETURNING *`,
-      [porciones_reales, id]
-    );
+  const client = await pool.connect();
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Actividad no encontrada.' });
+  try {
+    await client.query('BEGIN');
+
+    //verificar que la actividad exista y no esté cancelada
+    const { rows: actRows } = await client.query(
+      'SELECT estado FROM actividades WHERE id_actividad = $1 FOR UPDATE',
+      [id.valor]
+    );
+    if (actRows.length === 0) throw new ErrorNegocio('Actividad no encontrada.', 404);
+    if (actRows[0].estado === 'cancelada') {
+      throw new ErrorNegocio('No se puede registrar el consumo de una actividad cancelada.', 400);
     }
 
+    const { rows } = await client.query(
+      `UPDATE actividades SET porciones_reales = $1, estado = 'realizada' 
+       WHERE id_actividad = $2 RETURNING *`,
+      [porciones.valor, id.valor]
+    );
+
+    await client.query('COMMIT');
     res.json({ mensaje: 'Consumo real registrado correctamente.', actividad: rows[0] });
   } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof ErrorNegocio) return res.status(err.status).json({ error: err.message });
     console.error('Error al registrar consumo:', err);
     res.status(500).json({ error: 'No se pudo registrar el consumo real.' });
+  } finally {
+    client.release();
   }
 });
 
