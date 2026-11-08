@@ -77,7 +77,8 @@ export default function Inicio() {
             <p className="mini">Quedan {num(l.stock_actual_lote)} en el lote {l.id_donacion}. Conviene usarlo o derivarlo a tiempo.</p>
             <p style={{ marginTop: 8 }}>
               <span className="etiqueta baja">
-                {diasHasta(l.fecha_vencimiento) === 0 ? 'Vence hoy' : `Faltan ${diasHasta(l.fecha_vencimiento)} días`}
+                {diasHasta(l.fecha_vencimiento) === 0 ? 'Vence hoy'
+                  : diasHasta(l.fecha_vencimiento) === 1 ? 'Falta 1 día' : `Faltan ${diasHasta(l.fecha_vencimiento)} días`}
               </span>
             </p>
           </div>
